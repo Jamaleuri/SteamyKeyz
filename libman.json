@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "defaultProvider": "unpkg",
+  "defaultProvider": "cdnjs",
   "libraries": [
     {
       "library": "twitter-bootstrap@5.3.3",
@@ -25,13 +25,6 @@
       "destination": "SteamyKeyz/wwwroot/lib/jquery-validation/dist/",
       "files": [
         "jquery.validate.min.js"
-      ]
-    },
-    {
-      "library": "Microsoft.jQuery.Unobtrusive.Validation@4.0.0",
-      "destination": "SteamyKeyz/wwwroot/lib/jquery-validation-unobtrusive/dist/",
-      "files": [
-        "jquery.validate.unobtrusive.min.js"
       ]
     }
   ]
