@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SteamyKeyz", "SteamyKeyz\SteamyKeyz.csproj", "{302F59C6-7B76-4D2B-BF66-0872642C6545}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{302F59C6-7B76-4D2B-BF66-0872642C6545}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{302F59C6-7B76-4D2B-BF66-0872642C6545}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{302F59C6-7B76-4D2B-BF66-0872642C6545}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{302F59C6-7B76-4D2B-BF66-0872642C6545}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
