@@ -1,5 +1,38 @@
 {
   "version": "3.0",
   "defaultProvider": "cdnjs",
-  "libraries": []
+  "libraries": [
+    {
+      "library": "twitter-bootstrap@5.3.3",
+      "destination": "SteamyKeyz/wwwroot/lib/bootstrap/dist/",
+      "files": [
+        "css/bootstrap.min.css",
+        "css/bootstrap.min.css.map",
+        "js/bootstrap.bundle.min.js",
+        "js/bootstrap.bundle.min.js.map"
+      ]
+    },
+    {
+      "library": "jquery@3.7.1",
+      "destination": "SteamyKeyz/wwwroot/lib/jquery/dist/",
+      "files": [
+        "jquery.min.js",
+        "jquery.min.map"
+      ]
+    },
+    {
+      "library": "jquery-validate@1.21.0",
+      "destination": "SteamyKeyz/wwwroot/lib/jquery-validation/dist/",
+      "files": [
+        "jquery.validate.min.js"
+      ]
+    },
+    {
+      "library": "Microsoft.jQuery.Unobtrusive.Validation@4.0.0",
+      "destination": "SteamyKeyz/wwwroot/lib/jquery-validation-unobtrusive/dist/",
+      "files": [
+        "jquery.validate.unobtrusive.min.js"
+      ]
+    }
+  ]
 }
