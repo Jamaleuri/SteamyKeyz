@@ -250,6 +250,7 @@ public class CheckoutController : Controller
         var invoice = await _context.Invoices
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Game)
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Platform)
+            .Include(i=> i.User)
             .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
         if (invoice is null) return NotFound();
@@ -291,33 +292,29 @@ public class CheckoutController : Controller
         };
         await _emailService.SendInvoiceEmailAsync(invoice.User.Email, invoiceEmailModel);
         
+        // Build the model NOW while the DbContext is still alive and entities are loaded
+        var keysModel = new KeysEmailModel
+        {
+            CustomerName   = invoice.User.Username,
+            InvoiceNumber  = invoice.InvoiceNumber,
+            IsRegisteredUser = true,
+            AccountUrl     = "https://localhost:5131/Account",
+            Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
+            {
+                GameTitle    = ii.Key.Game.Title,
+                PlatformName = ii.Key.Platform.Name,
+                KeyValue     = ii.Key.KeyValue
+            }).ToList()
+        };
+
+// Capture the email address as a plain string too
+        var customerEmail = invoice.User.Email;
+
+// The background task now only holds plain data — no EF entities
         _ = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(30));
-
-            // Build the keys model
-            var keysModel = new KeysEmailModel
-            {
-                CustomerName   = invoice.User.Username,
-                InvoiceNumber  = invoice.InvoiceNumber,
-                IsRegisteredUser = true,
-                AccountUrl     = "https://localhost:5131/Account",
-                Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
-                {
-                    GameTitle    = ii.Key.Game.Title,
-                    PlatformName = ii.Key.Platform.Name,
-                    KeyValue     = ii.Key.KeyValue
-                }).ToList()
-            };
-
-            // You need a new scope because the original request is long gone
-            // In a real app, use IServiceScopeFactory:
-            //
-            // using var scope = _scopeFactory.CreateScope();
-            // var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-            // await emailService.SendKeysEmailAsync(invoice.User.Email, keysModel);
-
-            await _emailService.SendKeysEmailAsync(invoice.User.Email, keysModel);
+            await _emailService.SendKeysEmailAsync(customerEmail, keysModel);
         });
             TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
             return RedirectToAction(nameof(Confirmation), new { invoiceId });
