@@ -10,10 +10,12 @@ namespace SteamyKeyz.Controllers;
 public class CheckoutController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public CheckoutController(AppDbContext context)
+    public CheckoutController(AppDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
 
     private int? CurrentUserId =>
@@ -38,7 +40,7 @@ public class CheckoutController : Controller
             if (item.Quantity > item.AvailableStock)
             {
                 TempData["CartError"] = $"Not enough stock for '{item.GameTitle}' ({item.PlatformName}). " +
-                                         $"Available: {item.AvailableStock}, in cart: {item.Quantity}.";
+                                        $"Available: {item.AvailableStock}, in cart: {item.Quantity}.";
                 return RedirectToAction("Index", "Cart");
             }
         }
@@ -110,8 +112,9 @@ public class CheckoutController : Controller
                     if (key is null)
                     {
                         await transaction.RollbackAsync();
-                        TempData["CartError"] = $"Not enough stock for '{cartItem.GameTitle}' ({cartItem.PlatformName}). " +
-                                                 "Please adjust your cart and try again.";
+                        TempData["CartError"] =
+                            $"Not enough stock for '{cartItem.GameTitle}' ({cartItem.PlatformName}). " +
+                            "Please adjust your cart and try again.";
                         return RedirectToAction("Index", "Cart");
                     }
 
@@ -234,11 +237,9 @@ public class CheckoutController : Controller
                 GameTitle = ii.Key.Game.Title,
                 PlatformName = ii.Key.Platform.Name,
                 Price = ii.PriceAtPurchase,
-                // Show key only if status is KeysSent
                 KeyValue = invoice.Status == "KeysSent" ? ii.Key.KeyValue : null
             }).ToList()
         };
-
         return View(vm);
     }
 
@@ -247,7 +248,8 @@ public class CheckoutController : Controller
     public async Task<IActionResult> SimulatePayment(int invoiceId)
     {
         var invoice = await _context.Invoices
-            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Game)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Platform)
             .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
         if (invoice is null) return NotFound();
@@ -273,12 +275,54 @@ public class CheckoutController : Controller
         // TODO: Schedule background job to send keys email after 10 minutes
 
         // For now, immediately advance to KeysSent for demo purposes
-        invoice.Status = "KeysSent";
+        invoice.Status = "Paid";
         await _context.SaveChangesAsync();
+        var invoiceEmailModel = new InvoiceEmailModel()
+        {
+            InvoiceNumber = invoice.InvoiceNumber,
+            CustomerAddress = invoice.User.Email,
+            CustomerEmail = invoice.User.Email,
+            InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
+            Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+            CustomerName = invoice.User.Username,
+            Subtotal = invoice.TotalAmount.ToString("C"),
+            TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
+            TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
+        };
+        await _emailService.SendInvoiceEmailAsync(invoice.User.Email, invoiceEmailModel);
+        
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30));
 
-        TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
-        return RedirectToAction(nameof(Confirmation), new { invoiceId });
-    }
+            // Build the keys model
+            var keysModel = new KeysEmailModel
+            {
+                CustomerName   = invoice.User.Username,
+                InvoiceNumber  = invoice.InvoiceNumber,
+                IsRegisteredUser = true,
+                AccountUrl     = "https://localhost:5131/Account",
+                Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
+                {
+                    GameTitle    = ii.Key.Game.Title,
+                    PlatformName = ii.Key.Platform.Name,
+                    KeyValue     = ii.Key.KeyValue
+                }).ToList()
+            };
+
+            // You need a new scope because the original request is long gone
+            // In a real app, use IServiceScopeFactory:
+            //
+            // using var scope = _scopeFactory.CreateScope();
+            // var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+            // await emailService.SendKeysEmailAsync(invoice.User.Email, keysModel);
+
+            await _emailService.SendKeysEmailAsync(invoice.User.Email, keysModel);
+        });
+            TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
+            return RedirectToAction(nameof(Confirmation), new { invoiceId });
+        }
+    
 
     private async Task<CartViewModel> BuildCartViewModel()
     {

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using SteamyKeyz.Data;
+using SteamyKeyz.Services;
+using SteamyKeyz.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,16 +31,18 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LogoutPath = "/Account/Logout";
         options.AccessDeniedPath = "/Account/AccessDenied";
 
-        options.Cookie.HttpOnly = true;                         // not accessible via JS
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;// HTTPS only
-        options.Cookie.SameSite = SameSiteMode.Strict;          // CSRF protection
+        options.Cookie.HttpOnly = true;                         
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;          
         options.Cookie.Name = "SteamyKeyz.Auth";
-
-        options.ExpireTimeSpan = TimeSpan.FromDays(30);         // sliding window max
-        options.SlidingExpiration = true;                        // refresh on activity
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);         
+        options.SlidingExpiration = true;                       
     });
 
 builder.Services.AddAuthorization();
+builder.Services.Configure<SmtpSettings>(
+    builder.Configuration.GetSection("SmtpSettings"));
+builder.Services.AddTransient<IEmailService, EmailService>();
 
 var app = builder.Build();
 

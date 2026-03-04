@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your SteamyKeyz Invoice</title>
+</head>
+<body style="margin:0; padding:0; background-color:#0f0f13; font-family:'Segoe UI',Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased;">
+
+<!-- Wrapper -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0f0f13;">
+    <tr>
+        <td align="center" style="padding:32px 16px;">
+
+            <!-- Main Card -->
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1a24; border-radius:12px; overflow:hidden; max-width:600px; width:100%;">
+
+                <!-- Header Banner -->
+                <tr>
+                    <td style="background: linear-gradient(135deg, #6c3baa 0%, #1b6ec2 50%, #00b894 100%); padding:40px 40px 32px 40px; text-align:center;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="text-align:center;">
+                                    <span style="font-size:32px; font-weight:800; color:#ffffff; letter-spacing:-0.5px;">&#127918; SteamyKeyz</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="text-align:center; padding-top:16px;">
+                                    <span style="font-size:14px; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:3px; font-weight:600;">Invoice</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Invoice Meta -->
+                <tr>
+                    <td style="padding:32px 40px 0 40px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td width="50%" valign="top" style="color:#a0a0b8; font-size:13px; line-height:1.7;">
+                                    <strong style="color:#ffffff; font-size:14px; display:block; margin-bottom:4px;">Invoice Details</strong>
+                                    Invoice #: <span style="color:#00b894; font-weight:600;">{{InvoiceNumber}}</span><br />
+                                    Date: {{InvoiceDate}}<br />
+                                    Status: <span style="color:#00b894; font-weight:600;">Paid &#10003;</span>
+                                </td>
+                                <td width="50%" valign="top" style="color:#a0a0b8; font-size:13px; line-height:1.7; text-align:right;">
+                                    <strong style="color:#ffffff; font-size:14px; display:block; margin-bottom:4px;">Billed To</strong>
+                                    {{CustomerName}}<br />
+                                    {{CustomerEmail}}<br />
+                                    {{CustomerAddress}}
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr>
+                    <td style="padding:24px 40px;">
+                        <div style="height:1px; background: linear-gradient(90deg, transparent, #2d2d40, transparent);"></div>
+                    </td>
+                </tr>
+
+                <!-- Items Table -->
+                <tr>
+                    <td style="padding:0 40px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#6c6c8a; font-weight:700; border-bottom:2px solid #2d2d40;" width="45%">Game</td>
+                                <td style="padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#6c6c8a; font-weight:700; border-bottom:2px solid #2d2d40; text-align:center;" width="25%">Platform</td>
+                                <td style="padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#6c6c8a; font-weight:700; border-bottom:2px solid #2d2d40; text-align:center;" width="10%">Qty</td>
+                                <td style="padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#6c6c8a; font-weight:700; border-bottom:2px solid #2d2d40; text-align:right;" width="20%">Price</td>
+                            </tr>
+                            <!-- {{#InvoiceItems}} -->
+                            <!-- {{/InvoiceItems}} -->
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Totals -->
+                <tr>
+                    <td style="padding:20px 40px 0 40px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="padding:6px 12px; color:#6c6c8a; font-size:13px;" width="70%">Subtotal</td>
+                                <td style="padding:6px 12px; color:#a0a0b8; font-size:13px; text-align:right;" width="30%">&euro;{{Subtotal}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:6px 12px; color:#6c6c8a; font-size:13px;">Tax (20% USt.)</td>
+                                <td style="padding:6px 12px; color:#a0a0b8; font-size:13px; text-align:right;">&euro;{{TaxAmount}}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="padding:12px 12px 0 12px;">
+                                    <div style="height:2px; background: linear-gradient(90deg, #6c3baa, #00b894);"></div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:14px 12px; color:#ffffff; font-size:18px; font-weight:800;">Total</td>
+                                <td style="padding:14px 12px; color:#00b894; font-size:22px; font-weight:800; text-align:right;">&euro;{{TotalAmount}}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Info Box -->
+                <tr>
+                    <td style="padding:24px 40px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#13131c; border-radius:8px; border-left:4px solid #1b6ec2;">
+                            <tr>
+                                <td style="padding:16px 20px; color:#a0a0b8; font-size:13px; line-height:1.6;">
+                                    <strong style="color:#1b9ce2; font-size:13px;">&#128230; Your license keys are on the way!</strong><br />
+                                    You'll receive your game keys in a separate email within <strong style="color:#e0e0ec;">10 minutes</strong>.
+                                    If you have a SteamyKeyz account, keys will also appear under "My Account".
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr>
+                    <td style="padding:0 40px;">
+                        <div style="height:1px; background: linear-gradient(90deg, transparent, #2d2d40, transparent);"></div>
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:28px 40px 36px 40px; text-align:center;">
+                        <p style="margin:0 0 8px 0; color:#6c6c8a; font-size:12px; line-height:1.6;">
+                            This is an automated invoice from <strong style="color:#a0a0b8;">SteamyKeyz</strong>.<br />
+                            Questions? Contact us at
+                            <a href="mailto:support@steamykeyz.local" style="color:#1b9ce2; text-decoration:none;">support@steamykeyz.local</a>
+                        </p>
+                        <p style="margin:16px 0 0 0; color:#3d3d54; font-size:11px;">
+                            &copy; 2026 SteamyKeyz &middot; Vienna, Austria
+                        </p>
+                    </td>
+                </tr>
+
+            </table>
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

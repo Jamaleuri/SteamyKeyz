@@ -122,7 +122,7 @@ public class AccountController : Controller
 
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["InfoMessage"] = "Your account has been deleted.";
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     // ─── Helper: rebuild page after validation failure ───────────
@@ -160,15 +160,11 @@ public class AccountController : Controller
         return View(nameof(Index), vm);
     }
 
-    // ═════════════════════════════════════════════════════════════
-    //  Register / Login / Logout
-    // ═════════════════════════════════════════════════════════════
-
     [HttpGet]
     public IActionResult Register()
     {
         if (User.Identity?.IsAuthenticated == true)
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index", "Game");
         return View();
     }
 
@@ -215,14 +211,14 @@ public class AccountController : Controller
         // ── Merge guest cart into the new user's DB cart ──
         await CartController.MergeSessionCartIntoDb(HttpContext, _context, user.Id);
 
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
         if (User.Identity?.IsAuthenticated == true)
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index", "Game");
 
         ViewData["ReturnUrl"] = returnUrl;
         return View();
