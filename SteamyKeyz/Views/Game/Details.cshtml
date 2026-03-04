@@ -92,8 +92,7 @@
             </div>
         }
 
-        <!-- ── Admin Actions ──────────────────────────────────── -->
-        @if (User.IsInRole("Admin"))
+        @if (User.IsInRole("Admin") || User.IsInRole("Mitarbeiter"))
         {
             <hr />
             <div class="d-flex gap-2">

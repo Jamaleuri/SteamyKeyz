@@ -7,7 +7,7 @@ using SteamyKeyz.ViewModels;
 
 namespace SteamyKeyz.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = "Staff")]
 public class AdminController : Controller
 {
     private readonly AppDbContext _context;
@@ -21,6 +21,7 @@ public class AdminController : Controller
     //  USER MANAGEMENT
     // ═══════════════════════════════════════════════════════════
 
+    [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Users(string? search, int? roleId, bool? isActive)
     {
         var query = _context.Users
@@ -54,6 +55,7 @@ public class AdminController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> ToggleActive(int id)
     {
         var user = await _context.Users.FindAsync(id);
@@ -71,6 +73,7 @@ public class AdminController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> ChangeRole(int userId, int roleId)
     {
         var user = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == userId);
@@ -86,10 +89,6 @@ public class AdminController : Controller
         TempData["Success"] = $"User \"{user.Username}\" role changed from {oldRole} to {role.Name}.";
         return RedirectToAction(nameof(Users));
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  KEY MANAGEMENT
-    // ═══════════════════════════════════════════════════════════
 
     public async Task<IActionResult> Keys(int? gameId, int? platformId, string? status)
     {
@@ -206,10 +205,6 @@ public class AdminController : Controller
         TempData["Success"] = msg;
         return RedirectToAction(nameof(Keys), new { gameId, platformId });
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  ORDERS & INVOICES
-    // ═══════════════════════════════════════════════════════════
 
     // GET: Admin/Orders
     public async Task<IActionResult> Orders(string? status, string? search, DateTime? dateFrom, DateTime? dateTo)

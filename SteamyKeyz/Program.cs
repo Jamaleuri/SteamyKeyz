@@ -39,7 +39,16 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.SlidingExpiration = true;                       
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Full admin access (includes user management)
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole("Admin"));
+
+    // Staff = Admin OR Mitarbeiter (games, keys, orders)
+    options.AddPolicy("Staff", policy =>
+        policy.RequireRole("Admin", "Mitarbeiter"));
+});
 builder.Services.Configure<SmtpSettings>(
     builder.Configuration.GetSection("SmtpSettings"));
 builder.Services.AddTransient<IEmailService, EmailService>();
