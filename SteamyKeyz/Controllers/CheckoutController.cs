@@ -315,6 +315,9 @@ public class CheckoutController : Controller
         {
             await Task.Delay(TimeSpan.FromSeconds(30));
             await _emailService.SendKeysEmailAsync(customerEmail, keysModel);
+            invoice.Status = "KeysSent";
+            _context.Update(invoice);
+            await _context.SaveChangesAsync();
         });
             TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
             return RedirectToAction(nameof(Confirmation), new { invoiceId });

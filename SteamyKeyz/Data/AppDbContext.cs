@@ -32,6 +32,9 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email).IsUnique();
+        
+        modelBuilder.Entity<User>()
+            .Property(u => u.EmailConfirmed).HasDefaultValue(false);
 
         // ── ShoppingCart: one-to-one with User ──────────────────
         modelBuilder.Entity<ShoppingCart>()

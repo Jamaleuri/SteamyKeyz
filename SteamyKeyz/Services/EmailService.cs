@@ -131,6 +131,18 @@ public class EmailService : IEmailService
         return await File.ReadAllTextAsync(path);
     }
 
+    // ─── Email confirmation ──────────────────────────────────────
+
+    public async Task SendConfirmationEmailAsync(string toEmail, ConfirmationEmailModel model)
+    {
+        var template = await LoadTemplateAsync("EmailConfirmationTemplate.html");
+
+        var html = template
+            .Replace("{{Username}}", Sanitize(model.Username))
+            .Replace("{{ConfirmationUrl}}", Sanitize(model.ConfirmationUrl));
+
+        await SendEmailAsync(toEmail, "SteamyKeyz — Please Confirm Your Email", html);
+    }
     /// <summary>
     /// Builds one table row for an invoice line item.
     /// This HTML matches the structure in InvoiceEmailTemplate.html.

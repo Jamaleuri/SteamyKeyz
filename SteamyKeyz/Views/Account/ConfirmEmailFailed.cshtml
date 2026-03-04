@@ -1,0 +1,25 @@
+﻿@{
+    ViewData["Title"] = "Confirmation Link Expired";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center py-5">
+        <div class="text-warning" style="font-size: 4rem;">⏰</div>
+        <h1 class="mt-3">Link Expired</h1>
+        <p class="text-muted mt-3">
+            This confirmation link has expired or is no longer valid.
+            No worries — you can request a new one.
+        </p>
+
+        <form asp-action="ResendConfirmation" method="post" class="mt-4">
+            <input type="hidden" name="userId" value="@ViewBag.UserId" />
+            <button type="submit" class="btn btn-primary px-4">
+                Resend Confirmation Email
+            </button>
+        </form>
+
+        <p class="mt-3">
+            <a asp-action="Login" class="text-muted">Back to Login</a>
+        </p>
+    </div>
+</div>

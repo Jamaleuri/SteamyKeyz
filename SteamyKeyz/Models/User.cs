@@ -21,6 +21,14 @@ public class User
 
     public bool IsActive { get; set; } = true;
 
+    // ── Email confirmation ──────────────────────────────────
+    public bool EmailConfirmed { get; set; } = false;
+
+    [MaxLength(200)]
+    public string? EmailConfirmationToken { get; set; }
+
+    public DateTime? EmailConfirmationTokenExpiry { get; set; }
+
     [ForeignKey(nameof(RoleId))]
     public Role Role { get; set; } = null!;
 

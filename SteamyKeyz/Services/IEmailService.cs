@@ -3,6 +3,7 @@ namespace SteamyKeyz.Services;
 
 public interface IEmailService
 {
+    Task SendConfirmationEmailAsync(string toEmail, ConfirmationEmailModel model);
     Task SendEmailAsync(string toEmail, string subject, string htmlBody);
     Task SendInvoiceEmailAsync(string toEmail, InvoiceEmailModel model);
     Task SendKeysEmailAsync(string toEmail, KeysEmailModel model);
@@ -25,6 +26,7 @@ public class InvoiceEmailModel
 
 public class InvoiceEmailItem
 {
+   
     public InvoiceEmailItem(InvoiceItem invoiceItem)
     {
         GameTitle = invoiceItem.Key.Game.Title;
@@ -51,4 +53,9 @@ public class KeyEmailItem
     public string GameTitle { get; set; } = string.Empty;
     public string PlatformName { get; set; } = string.Empty;
     public string KeyValue { get; set; } = string.Empty;
+}
+public class ConfirmationEmailModel
+{
+    public string Username { get; set; } = string.Empty;
+    public string ConfirmationUrl { get; set; } = string.Empty;
 }
