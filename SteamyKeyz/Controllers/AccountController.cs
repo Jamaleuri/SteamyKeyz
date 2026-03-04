@@ -40,7 +40,7 @@ public class AccountController : Controller
             .Include(ii => ii.Key).ThenInclude(k => k.Game)
             .Include(ii => ii.Key).ThenInclude(k => k.Platform)
             .Include(ii => ii.Invoice)
-            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "Paid")
+            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "KeysSent")
             .OrderByDescending(ii => ii.Invoice.CreatedAt)
             .Select(ii => new OwnedGameViewModel
             {
@@ -136,7 +136,7 @@ public class AccountController : Controller
             .Include(ii => ii.Key).ThenInclude(k => k.Game)
             .Include(ii => ii.Key).ThenInclude(k => k.Platform)
             .Include(ii => ii.Invoice)
-            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "Paid")
+            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "KeysSent")
             .OrderByDescending(ii => ii.Invoice.CreatedAt)
             .Select(ii => new OwnedGameViewModel
             {
@@ -211,6 +211,10 @@ public class AccountController : Controller
         await _context.SaveChangesAsync();
 
         await SignInUser(user, customerRole.Name, isPersistent: false);
+
+        // ── Merge guest cart into the new user's DB cart ──
+        await CartController.MergeSessionCartIntoDb(HttpContext, _context, user.Id);
+
         return RedirectToAction("Index", "Home");
     }
 
@@ -253,10 +257,13 @@ public class AccountController : Controller
 
         await SignInUser(user, user.Role.Name, model.RememberMe);
 
+        // ── Merge guest cart into the user's DB cart ──
+        await CartController.MergeSessionCartIntoDb(HttpContext, _context, user.Id);
+
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             return Redirect(returnUrl);
 
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     [HttpPost]
@@ -265,7 +272,7 @@ public class AccountController : Controller
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     [HttpGet]

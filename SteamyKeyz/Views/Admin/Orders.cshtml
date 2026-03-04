@@ -1,0 +1,161 @@
+@model SteamyKeyz.ViewModels.AdminOrderIndexViewModel
+
+@{
+    ViewData["Title"] = "Orders & Invoices";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Orders & Invoices</h1>
+    <span class="badge bg-secondary fs-6">@Model.TotalOrders total orders</span>
+</div>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @success
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- ── Stats Cards ────────────────────────────────────────────── -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center border-warning">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-warning">@Model.PendingCount</div>
+                <div class="text-muted small">Pending</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-info">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-info">@Model.PaidCount</div>
+                <div class="text-muted small">Paid</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-success">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-success">@Model.KeysSentCount</div>
+                <div class="text-muted small">Keys Sent</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-primary">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-primary">@Model.TotalRevenue.ToString("C")</div>
+                <div class="text-muted small">Total Revenue</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Filters ────────────────────────────────────────────────── -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" asp-action="Orders" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <input type="text" name="search" class="form-control" value="@Model.Search"
+                       placeholder="Invoice #, username, email..." />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="Pending" selected="@(Model.Status == "Pending")">Pending</option>
+                    <option value="Paid" selected="@(Model.Status == "Paid")">Paid</option>
+                    <option value="InvoiceSent" selected="@(Model.Status == "InvoiceSent")">Invoice Sent</option>
+                    <option value="KeysSent" selected="@(Model.Status == "KeysSent")">Keys Sent</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From</label>
+                <input type="date" name="dateFrom" class="form-control"
+                       value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To</label>
+                <input type="date" name="dateTo" class="form-control"
+                       value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a asp-action="Orders" class="btn btn-outline-secondary w-100">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Orders Table ───────────────────────────────────────────── -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th class="text-end">Total</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var order in Model.Orders)
+            {
+                var statusBadge = order.Status switch
+                {
+                    "Pending"     => "bg-warning text-dark",
+                    "Paid"        => "bg-info text-dark",
+                    "InvoiceSent" => "bg-primary",
+                    "KeysSent"    => "bg-success",
+                    _             => "bg-secondary"
+                };
+
+                <tr>
+                    <td>
+                        <a asp-action="OrderDetail" asp-route-id="@order.InvoiceId" class="fw-bold text-decoration-none">
+                            @order.InvoiceNumber
+                        </a>
+                    </td>
+                    <td>
+                        @if (order.IsGuestOrder)
+                        {
+                            <span class="badge bg-secondary me-1">Guest</span>
+                        }
+                        <span>@order.Username</span>
+                        <div class="text-muted small">@order.Email</div>
+                    </td>
+                    <td>@order.ItemCount key(s)</td>
+                    <td class="text-end fw-semibold">@order.TotalAmount.ToString("C")</td>
+                    <td><span class="badge @statusBadge">@order.Status</span></td>
+                    <td>@order.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td class="text-end">
+                        <a asp-action="OrderDetail" asp-route-id="@order.InvoiceId"
+                           class="btn btn-outline-primary btn-sm">
+                            Details
+                        </a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Orders.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        No orders found matching your filters.
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="text-muted mt-2 small">Showing up to 200 most recent orders matching your filters.</p>

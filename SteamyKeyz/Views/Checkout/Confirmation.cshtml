@@ -1,0 +1,164 @@
+@model SteamyKeyz.ViewModels.OrderConfirmationViewModel
+
+@{
+    ViewData["Title"] = $"Order {Model.InvoiceNumber}";
+}
+
+@if (TempData["OrderSuccess"] is string success)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @success
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["OrderError"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <!-- ── Order Header ───────────────────────────────────── -->
+        <div class="text-center mb-4">
+            @if (Model.Status == "KeysSent")
+            {
+                <div class="text-success mb-2" style="font-size: 4rem;">✓</div>
+                <h1>Order Complete!</h1>
+                <p class="text-muted">Your license keys are ready below.</p>
+            }
+            else if (Model.Status == "Paid")
+            {
+                <div class="text-primary mb-2" style="font-size: 4rem;">⏳</div>
+                <h1>Payment Received</h1>
+                <p class="text-muted">Your keys will be delivered shortly.</p>
+            }
+            else
+            {
+                <div class="text-warning mb-2" style="font-size: 4rem;">🛒</div>
+                <h1>Order Placed</h1>
+                <p class="text-muted">Please complete payment to receive your keys.</p>
+            }
+        </div>
+
+        <!-- ── Order Info Card ────────────────────────────────── -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-sm-6 mb-2">
+                        <span class="text-muted">Invoice Number</span>
+                        <div class="fw-bold">@Model.InvoiceNumber</div>
+                    </div>
+                    <div class="col-sm-3 mb-2">
+                        <span class="text-muted">Date</span>
+                        <div class="fw-bold">@Model.CreatedAt.ToString("dd MMM yyyy")</div>
+                    </div>
+                    <div class="col-sm-3 mb-2">
+                        <span class="text-muted">Status</span>
+                        <div>
+                            @{
+                                var (badgeClass, label) = Model.Status switch
+                                {
+                                    "Pending" => ("bg-warning text-dark", "Awaiting Payment"),
+                                    "Paid" => ("bg-info text-dark", "Paid — Preparing Keys"),
+                                    "InvoiceSent" => ("bg-primary", "Invoice Sent"),
+                                    "KeysSent" => ("bg-success", "Complete"),
+                                    _ => ("bg-secondary", Model.Status)
+                                };
+                            }
+                            <span class="badge @badgeClass fs-6">@label</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Items ──────────────────────────────────────────── -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Order Items</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Game</th>
+                            <th>Platform</th>
+                            <th class="text-end">Price</th>
+                            @if (Model.Status == "KeysSent")
+                            {
+                                <th>License Key</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td><strong>@item.GameTitle</strong></td>
+                                <td><span class="badge bg-secondary">@item.PlatformName</span></td>
+                                <td class="text-end">@item.Price.ToString("C")</td>
+                                @if (Model.Status == "KeysSent")
+                                {
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(item.KeyValue))
+                                        {
+                                            <code class="user-select-all fs-6">@item.KeyValue</code>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="@(Model.Status == "KeysSent" ? 2 : 2)" class="text-end fw-bold">Total</td>
+                            <td class="text-end fw-bold text-success fs-5">@Model.TotalAmount.ToString("C")</td>
+                            @if (Model.Status == "KeysSent")
+                            {
+                                <td></td>
+                            }
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- ── Payment Simulation Button ──────────────────────── -->
+        @if (Model.Status == "Pending")
+        {
+            <div class="card border-success mb-4">
+                <div class="card-body text-center">
+                    <h5 class="mb-3">Ready to pay?</h5>
+                    <p class="text-muted">Click below to simulate a successful payment.</p>
+                    <form asp-controller="Checkout" asp-action="SimulatePayment" method="post">
+                        <input type="hidden" name="invoiceId" value="@Model.InvoiceId" />
+                        <button type="submit" class="btn btn-success btn-lg px-5">
+                            Confirm Payment — @Model.TotalAmount.ToString("C")
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+
+        <!-- ── Actions ────────────────────────────────────────── -->
+        <div class="d-flex justify-content-between">
+            <a asp-controller="Game" asp-action="Index" class="btn btn-outline-primary">
+                Continue Shopping
+            </a>
+            @if (Model.IsRegisteredUser)
+            {
+                <a asp-controller="Account" asp-action="Index" class="btn btn-outline-secondary">
+                    View My Account
+                </a>
+            }
+        </div>
+    </div>
+</div>

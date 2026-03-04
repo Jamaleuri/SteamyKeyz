@@ -1,0 +1,189 @@
+@model SteamyKeyz.ViewModels.AdminOrderDetailViewModel
+
+@{
+    ViewData["Title"] = $"Order {Model.InvoiceNumber}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a asp-action="Orders" class="text-decoration-none text-muted">&larr; Back to Orders</a>
+        <h1 class="mt-1 mb-0">Order @Model.InvoiceNumber</h1>
+    </div>
+    <div>
+        @{
+            var statusBadge = Model.Status switch
+            {
+                "Pending"     => "bg-warning text-dark",
+                "Paid"        => "bg-info text-dark",
+                "InvoiceSent" => "bg-primary",
+                "KeysSent"    => "bg-success",
+                _             => "bg-secondary"
+            };
+        }
+        <span class="badge @statusBadge fs-5">@Model.Status</span>
+    </div>
+</div>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @success
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <!-- ── Left: Order Info + Items ───────────────────────────── -->
+    <div class="col-lg-8">
+
+        <!-- Customer Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Customer</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-sm-4">
+                        <span class="text-muted">Type</span>
+                        <div>
+                            @if (Model.IsGuestOrder)
+                            {
+                                <span class="badge bg-secondary">Guest</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark">Registered</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted">Username</span>
+                        <div class="fw-bold">@Model.Username</div>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted">Email</span>
+                        <div class="fw-bold">@Model.Email</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Items -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Items & Assigned Keys</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Game</th>
+                            <th>Platform</th>
+                            <th>License Key</th>
+                            <th>Key Status</th>
+                            <th class="text-end">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        var keyBadge = item.KeyStatus switch
+                        {
+                            "Available" => "bg-success",
+                            "Reserved"  => "bg-warning text-dark",
+                            "Sold"      => "bg-secondary",
+                            _           => "bg-light text-dark"
+                        };
+
+                        <tr>
+                            <td><strong>@item.GameTitle</strong></td>
+                            <td><span class="badge bg-secondary">@item.PlatformName</span></td>
+                            <td><code class="user-select-all">@item.KeyValue</code></td>
+                            <td><span class="badge @keyBadge">@item.KeyStatus</span></td>
+                            <td class="text-end">@item.PriceAtPurchase.ToString("C")</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" class="text-end fw-bold">Total</td>
+                            <td class="text-end fw-bold text-success fs-5">@Model.TotalAmount.ToString("C")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right: Actions ─────────────────────────────────────── -->
+    <div class="col-lg-4">
+
+        <!-- Order Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Order Info</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <span class="text-muted">Invoice Number</span>
+                    <div class="fw-bold">@Model.InvoiceNumber</div>
+                </div>
+                <div class="mb-2">
+                    <span class="text-muted">Created</span>
+                    <div class="fw-bold">@Model.CreatedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                </div>
+                <div class="mb-2">
+                    <span class="text-muted">Items</span>
+                    <div class="fw-bold">@Model.Items.Count key(s)</div>
+                </div>
+                <div>
+                    <span class="text-muted">Total</span>
+                    <div class="fw-bold text-success fs-5">@Model.TotalAmount.ToString("C")</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Change Status</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="UpdateOrderStatus" method="post">
+                    <input type="hidden" name="invoiceId" value="@Model.InvoiceId" />
+                    <div class="mb-3">
+                        <select name="newStatus" class="form-select">
+                            <option value="Pending" selected="@(Model.Status == "Pending")">Pending</option>
+                            <option value="Paid" selected="@(Model.Status == "Paid")">Paid</option>
+                            <option value="InvoiceSent" selected="@(Model.Status == "InvoiceSent")">Invoice Sent</option>
+                            <option value="KeysSent" selected="@(Model.Status == "KeysSent")">Keys Sent</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100"
+                            onclick="return confirm('Change order status?');">
+                        Update Status
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Resend Invoice -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Email Actions</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="ResendInvoice" method="post">
+                    <input type="hidden" name="invoiceId" value="@Model.InvoiceId" />
+                    <button type="submit" class="btn btn-outline-primary w-100 mb-2"
+                            onclick="return confirm('Resend invoice to @Model.Email?');">
+                        Resend Invoice Email
+                    </button>
+                </form>
+                <p class="text-muted small mb-0">
+                    Sends the invoice to <strong>@Model.Email</strong>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

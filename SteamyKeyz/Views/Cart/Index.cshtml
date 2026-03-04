@@ -1,0 +1,131 @@
+@model SteamyKeyz.ViewModels.CartViewModel
+
+@{
+    ViewData["Title"] = "Shopping Cart";
+}
+
+<h1 class="mb-4">Shopping Cart</h1>
+
+@if (TempData["CartSuccess"] is string success)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @success
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["CartError"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (Model.Items.Count == 0)
+{
+    <div class="text-center py-5">
+        <div class="text-muted mb-3" style="font-size: 4rem;">🛒</div>
+        <h4 class="text-muted">Your cart is empty</h4>
+        <p class="text-muted">Browse our games and add something you like!</p>
+        <a asp-controller="Game" asp-action="Index" class="btn btn-primary mt-2">Browse Games</a>
+    </div>
+}
+else
+{
+    <div class="row">
+        <!-- ── Cart Items ─────────────────────────────────────── -->
+        <div class="col-lg-8">
+            @foreach (var item in Model.Items)
+            {
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <!-- Image -->
+                            <div class="col-auto">
+                                <img src="@item.ImageUrl" alt="@item.GameTitle"
+                                     class="rounded" style="width: 80px; height: 80px; object-fit: cover;"
+                                     onerror="this.outerHTML='<div class=\'rounded bg-secondary d-flex align-items-center justify-content-center text-white\' style=\'width:80px;height:80px\'><span>🎮</span></div>'" />
+                            </div>
+
+                            <!-- Info -->
+                            <div class="col">
+                                <h6 class="mb-1">
+                                    <a asp-controller="Game" asp-action="Details" asp-route-id="@item.GameId"
+                                       class="text-decoration-none">
+                                        @item.GameTitle
+                                    </a>
+                                </h6>
+                                <span class="badge bg-secondary">@item.PlatformName</span>
+                                <div class="text-muted small mt-1">@item.UnitPrice.ToString("C") each</div>
+
+                                @if (item.Quantity > item.AvailableStock)
+                                {
+                                    <div class="text-danger small mt-1">
+                                        Only @item.AvailableStock in stock!
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Quantity -->
+                            <div class="col-auto">
+                                <form asp-action="UpdateQuantity" method="post" class="d-flex align-items-center gap-2">
+                                    <input type="hidden" name="gameId" value="@item.GameId" />
+                                    <input type="hidden" name="platformId" value="@item.PlatformId" />
+                                    <input type="number" name="quantity" value="@item.Quantity"
+                                           min="1" max="@item.AvailableStock"
+                                           class="form-control form-control-sm" style="width: 70px;" />
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
+                                </form>
+                            </div>
+
+                            <!-- Line total -->
+                            <div class="col-auto text-end" style="min-width: 100px;">
+                                <div class="fw-bold text-success">@item.LineTotal.ToString("C")</div>
+                            </div>
+
+                            <!-- Remove -->
+                            <div class="col-auto">
+                                <form asp-action="Remove" method="post">
+                                    <input type="hidden" name="gameId" value="@item.GameId" />
+                                    <input type="hidden" name="platformId" value="@item.PlatformId" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove">
+                                        &times;
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- ── Order Summary ──────────────────────────────────── -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Order Summary</h5>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Items (@Model.TotalItems)</span>
+                        <span>@Model.Subtotal.ToString("C")</span>
+                    </div>
+
+                    <hr />
+
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fw-bold fs-5">Total</span>
+                        <span class="fw-bold fs-5 text-success">@Model.Subtotal.ToString("C")</span>
+                    </div>
+
+                    <a asp-controller="Checkout" asp-action="Index" class="btn btn-success w-100 btn-lg">
+                        Proceed to Checkout
+                    </a>
+
+                    <a asp-controller="Game" asp-action="Index" class="btn btn-outline-secondary w-100 mt-2">
+                        Continue Shopping
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
