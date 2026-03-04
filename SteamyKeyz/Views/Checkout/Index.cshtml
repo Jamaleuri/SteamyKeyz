@@ -1,0 +1,159 @@
+@model SteamyKeyz.ViewModels.CheckoutViewModel
+
+@{
+    ViewData["Title"] = "Checkout";
+}
+
+<h1 class="mb-4">Checkout</h1>
+
+@if (TempData["CartError"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<form asp-action="PlaceOrder" method="post">
+    <div class="row">
+        <!-- ── Left: Customer Info ────────────────────────────── -->
+        <div class="col-lg-7">
+
+            @if (Model.IsGuest)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Your Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Already have an account?
+                            <a asp-controller="Account" asp-action="Login"
+                               asp-route-returnUrl="/Checkout">Log in here</a>
+                            for a faster checkout.
+                        </p>
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="GuestName" class="form-label"></label>
+                                <input asp-for="GuestName" class="form-control" />
+                                <span asp-validation-for="GuestName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="GuestEmail" class="form-label"></label>
+                                <input asp-for="GuestEmail" class="form-control" type="email" />
+                                <span asp-validation-for="GuestEmail" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Street" class="form-label"></label>
+                            <input asp-for="Street" class="form-control" />
+                            <span asp-validation-for="Street" class="text-danger"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="PostalCode" class="form-label"></label>
+                                <input asp-for="PostalCode" class="form-control" />
+                                <span asp-validation-for="PostalCode" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="City" class="form-label"></label>
+                                <input asp-for="City" class="form-control" />
+                                <span asp-validation-for="City" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Country" class="form-label"></label>
+                                <input asp-for="Country" class="form-control" value="Austria" />
+                                <span asp-validation-for="Country" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <hr />
+                        <p class="text-muted small mb-2">Optional — for business customers:</p>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Company" class="form-label"></label>
+                                <input asp-for="Company" class="form-control" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="VatId" class="form-label"></label>
+                                <input asp-for="VatId" class="form-control" placeholder="e.g. ATU12345678" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="mb-2">Signed in as <strong>@User.Identity?.Name</strong></h5>
+                        <p class="text-muted mb-0">
+                            Your order will be linked to your account and keys will appear in your profile.
+                        </p>
+                    </div>
+                </div>
+            }
+
+            <!-- ── Payment Section ────────────────────────────── -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Payment</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-0">
+                        <strong>Simulation Mode</strong> — After placing your order you'll be able to
+                        confirm payment with a single click. No real payment is processed.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Right: Order Summary ───────────────────────────── -->
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    @foreach (var item in Model.Cart.Items)
+                    {
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <strong>@item.GameTitle</strong>
+                                <div class="text-muted small">
+                                    @item.PlatformName &times; @item.Quantity
+                                </div>
+                            </div>
+                            <span class="fw-semibold">@item.LineTotal.ToString("C")</span>
+                        </div>
+                    }
+
+                    <hr />
+
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fw-bold fs-5">Total</span>
+                        <span class="fw-bold fs-5 text-success">@Model.Cart.Subtotal.ToString("C")</span>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        Place Order
+                    </button>
+
+                    <a asp-controller="Cart" asp-action="Index" class="btn btn-outline-secondary w-100 mt-2">
+                        Back to Cart
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

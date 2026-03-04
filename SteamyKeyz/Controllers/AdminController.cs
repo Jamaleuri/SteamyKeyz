@@ -1,11 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using SteamyKeyz.Data;
 
 namespace SteamyKeyz.Controllers;
 
-// TODO: Add [Authorize(Roles = "Admin")] once auth is wired up
+[Authorize(Roles = "Admin")]
 public class AdminController : Controller
 {
     private readonly AppDbContext _context;
@@ -14,12 +15,6 @@ public class AdminController : Controller
     {
         _context = context;
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  USER MANAGEMENT
-    // ═══════════════════════════════════════════════════════════
-
-    // GET: Admin/Users
     public async Task<IActionResult> Users(string? search, int? roleId, bool? isActive)
     {
         var query = _context.Users
@@ -87,10 +82,6 @@ public class AdminController : Controller
         TempData["Success"] = $"User \"{user.Username}\" role changed from {oldRole} to {role.Name}.";
         return RedirectToAction(nameof(Users));
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  KEY MANAGEMENT
-    // ═══════════════════════════════════════════════════════════
 
     // GET: Admin/Keys
     public async Task<IActionResult> Keys(int? gameId, int? platformId, string? status)
