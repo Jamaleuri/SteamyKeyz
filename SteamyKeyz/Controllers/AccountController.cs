@@ -19,14 +19,156 @@ public class AccountController : Controller
         _context = context;
     }
 
-    // ─── Register ────────────────────────────────────────────────
+    // ─── Helper: current user id from claims ─────────────────────
+
+    private int? CurrentUserId =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+
+    // ─── Account Page (tabbed) ───────────────────────────────────
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> Index(string? tab = null)
+    {
+        var userId = CurrentUserId!.Value;
+
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstAsync(u => u.Id == userId);
+
+        var ownedGames = await _context.InvoiceItems
+            .Include(ii => ii.Key).ThenInclude(k => k.Game)
+            .Include(ii => ii.Key).ThenInclude(k => k.Platform)
+            .Include(ii => ii.Invoice)
+            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "Paid")
+            .OrderByDescending(ii => ii.Invoice.CreatedAt)
+            .Select(ii => new OwnedGameViewModel
+            {
+                Title = ii.Key.Game.Title,
+                Platform = ii.Key.Platform.Name,
+                ImageUrl = ii.Key.Game.ImageUrl,
+                PurchasedAt = ii.Invoice.CreatedAt,
+                PricePaid = ii.PriceAtPurchase
+            })
+            .ToListAsync();
+
+        var vm = new AccountPageViewModel
+        {
+            Username = user.Username,
+            Email = user.Email,
+            MemberSince = user.CreatedAt,
+            OwnedGames = ownedGames,
+            ActiveTab = tab ?? "games"
+        };
+
+        return View(vm);
+    }
+
+    // ─── Change Password ─────────────────────────────────────────
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+    {
+        if (!ModelState.IsValid)
+            return await RebuildAccountPage("password");
+
+        var user = await _context.Users.FindAsync(CurrentUserId!.Value);
+
+        if (user is null || !PasswordHasher.Verify(model.CurrentPassword, user.PasswordHash))
+        {
+            ModelState.AddModelError("ChangePassword.CurrentPassword", "Current password is incorrect.");
+            return await RebuildAccountPage("password");
+        }
+
+        user.PasswordHash = PasswordHasher.Hash(model.NewPassword);
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "Your password has been changed.";
+        return RedirectToAction(nameof(Index), new { tab = "password" });
+    }
+
+    // ─── Delete Account ──────────────────────────────────────────
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAccount(DeleteAccountViewModel model)
+    {
+        if (!ModelState.IsValid)
+            return await RebuildAccountPage("delete");
+
+        var user = await _context.Users
+            .Include(u => u.ShoppingCart)
+            .FirstOrDefaultAsync(u => u.Id == CurrentUserId!.Value);
+
+        if (user is null || !PasswordHasher.Verify(model.Password, user.PasswordHash))
+        {
+            ModelState.AddModelError("DeleteAccount.Password", "Password is incorrect.");
+            return await RebuildAccountPage("delete");
+        }
+
+        // Soft-delete: deactivate and wipe PII
+        user.IsActive = false;
+        user.Email = $"deleted_{user.Id}@removed.local";
+        user.Username = $"deleted_{user.Id}";
+        user.PasswordHash = string.Empty;
+
+        if (user.ShoppingCart is not null)
+            _context.ShoppingCarts.Remove(user.ShoppingCart);
+
+        await _context.SaveChangesAsync();
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        TempData["InfoMessage"] = "Your account has been deleted.";
+        return RedirectToAction("Index", "Home");
+    }
+
+    // ─── Helper: rebuild page after validation failure ───────────
+
+    private async Task<IActionResult> RebuildAccountPage(string activeTab)
+    {
+        var userId = CurrentUserId!.Value;
+        var user = await _context.Users.AsNoTracking().FirstAsync(u => u.Id == userId);
+
+        var ownedGames = await _context.InvoiceItems
+            .Include(ii => ii.Key).ThenInclude(k => k.Game)
+            .Include(ii => ii.Key).ThenInclude(k => k.Platform)
+            .Include(ii => ii.Invoice)
+            .Where(ii => ii.Invoice.UserId == userId && ii.Invoice.Status == "Paid")
+            .OrderByDescending(ii => ii.Invoice.CreatedAt)
+            .Select(ii => new OwnedGameViewModel
+            {
+                Title = ii.Key.Game.Title,
+                Platform = ii.Key.Platform.Name,
+                ImageUrl = ii.Key.Game.ImageUrl,
+                PurchasedAt = ii.Invoice.CreatedAt,
+                PricePaid = ii.PriceAtPurchase
+            })
+            .ToListAsync();
+
+        var vm = new AccountPageViewModel
+        {
+            Username = user.Username,
+            Email = user.Email,
+            MemberSince = user.CreatedAt,
+            OwnedGames = ownedGames,
+            ActiveTab = activeTab
+        };
+
+        return View(nameof(Index), vm);
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  Register / Login / Logout
+    // ═════════════════════════════════════════════════════════════
 
     [HttpGet]
     public IActionResult Register()
     {
         if (User.Identity?.IsAuthenticated == true)
             return RedirectToAction("Index", "Home");
-
         return View();
     }
 
@@ -37,8 +179,6 @@ public class AccountController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
-        // Check for duplicate username or email (prevent enumeration by
-        // using a single generic message)
         var exists = await _context.Users.AnyAsync(u =>
             u.Username == model.Username || u.Email == model.Email);
 
@@ -49,7 +189,6 @@ public class AccountController : Controller
             return View(model);
         }
 
-        // Ensure a default "Customer" role exists
         var customerRole = await _context.Roles
             .FirstOrDefaultAsync(r => r.Name == "Customer");
 
@@ -71,13 +210,9 @@ public class AccountController : Controller
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        // Auto-sign-in after registration
         await SignInUser(user, customerRole.Name, isPersistent: false);
-
         return RedirectToAction("Index", "Home");
     }
-
-    // ─── Login ───────────────────────────────────────────────────
 
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
@@ -98,7 +233,6 @@ public class AccountController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
-        // Find user by username OR email
         var user = await _context.Users
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u =>
@@ -107,7 +241,6 @@ public class AccountController : Controller
 
         if (user is null || !PasswordHasher.Verify(model.Password, user.PasswordHash))
         {
-            // Generic message to prevent user enumeration
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
             return View(model);
         }
@@ -126,8 +259,6 @@ public class AccountController : Controller
         return RedirectToAction("Index", "Home");
     }
 
-    // ─── Logout ──────────────────────────────────────────────────
-
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize]
@@ -137,15 +268,10 @@ public class AccountController : Controller
         return RedirectToAction("Index", "Home");
     }
 
-    // ─── Access Denied ───────────────────────────────────────────
-
     [HttpGet]
-    public IActionResult AccessDenied()
-    {
-        return View();
-    }
+    public IActionResult AccessDenied() => View();
 
-    // ─── Helpers ─────────────────────────────────────────────────
+    // ─── Sign-in helper ──────────────────────────────────────────
 
     private async Task SignInUser(User user, string roleName, bool isPersistent)
     {
@@ -165,7 +291,7 @@ public class AccountController : Controller
             IsPersistent = isPersistent,
             ExpiresUtc = isPersistent
                 ? DateTimeOffset.UtcNow.AddDays(30)
-                : null                                    // session cookie
+                : null
         };
 
         await HttpContext.SignInAsync(

@@ -1,0 +1,153 @@
+@model IEnumerable<Key>
+@{
+    ViewData["Title"] = "Key Management";
+    var selectedGameId = ViewBag.SelectedGameId as int?;
+    var selectedPlatformId = ViewBag.SelectedPlatformId as int?;
+    var selectedStatus = ViewBag.SelectedStatus as string;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-key-fill me-2"></i>Key Management</h1>
+    <a asp-action="AddKeys" class="btn btn-success">
+        + Add Keys
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>Done!</strong> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Error:</strong> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Stats Summary -->
+@{
+    var stats = ViewBag.KeyStats as List<dynamic>;
+    var available = Model.Count(k => k.Status == "Available");
+    var reserved = Model.Count(k => k.Status == "Reserved");
+    var sold = Model.Count(k => k.Status == "Sold");
+}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center border-success">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-success">@available</div>
+                <div class="text-muted small">Available</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-warning">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-warning">@reserved</div>
+                <div class="text-muted small">Reserved</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-secondary">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-secondary">@sold</div>
+                <div class="text-muted small">Sold</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-primary">
+            <div class="card-body py-2">
+                <div class="fs-3 fw-bold text-primary">@Model.Count()</div>
+                <div class="text-muted small">Showing</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" asp-action="Keys" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Game</label>
+                <select name="gameId" class="form-select" asp-items="@(ViewBag.Games as SelectList)">
+                    <option value="">All Games</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Platform</label>
+                <select name="platformId" class="form-select" asp-items="@(ViewBag.Platforms as SelectList)">
+                    <option value="">All Platforms</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="Available" selected="@(selectedStatus == "Available")">Available</option>
+                    <option value="Reserved" selected="@(selectedStatus == "Reserved")">Reserved</option>
+                    <option value="Sold" selected="@(selectedStatus == "Sold")">Sold</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Keys Table -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Game</th>
+                    <th>Platform</th>
+                    <th>Key</th>
+                    <th>Status</th>
+                    <th>Added</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var key in Model)
+            {
+                var statusClass = key.Status switch
+                {
+                    "Available" => "bg-success",
+                    "Reserved"  => "bg-warning text-dark",
+                    "Sold"      => "bg-secondary",
+                    _           => "bg-light text-dark"
+                };
+                <tr>
+                    <td><code>@key.Id</code></td>
+                    <td>@key.Game.Title</td>
+                    <td>@key.Platform.Name</td>
+                    <td>
+                        <code class="user-select-all">@key.KeyValue</code>
+                    </td>
+                    <td><span class="badge @statusClass">@key.Status</span></td>
+                    <td>@key.AddedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No keys found. <a asp-action="AddKeys">Add some keys</a> to get started.
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="text-muted mt-2 small">Showing up to 200 most recent keys matching your filters.</p>

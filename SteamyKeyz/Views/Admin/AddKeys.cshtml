@@ -1,0 +1,85 @@
+@{
+    ViewData["Title"] = "Add Keys";
+}
+
+<div class="mb-4">
+    <h1><i class="bi bi-plus-circle me-2"></i>Add Keys</h1>
+    <p class="text-muted">Import license keys for a specific game and platform. Paste one key per line.</p>
+</div>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Error:</strong> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post" asp-action="AddKeys">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Game <span class="text-danger">*</span></label>
+                            <select name="gameId" class="form-select" required
+                                    asp-items="@(ViewBag.Games as SelectList)">
+                                <option value="">— Select a game —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Platform <span class="text-danger">*</span></label>
+                            <select name="platformId" class="form-select" required
+                                    asp-items="@(ViewBag.Platforms as SelectList)">
+                                <option value="">— Select a platform —</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            License Keys <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="keysText" class="form-control font-monospace" rows="12"
+                                  required
+                                  placeholder="XXXXX-XXXXX-XXXXX-XXXXX&#10;YYYYY-YYYYY-YYYYY-YYYYY&#10;ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ"></textarea>
+                        <div class="form-text">
+                            One key per line. Blank lines and leading/trailing whitespace are ignored.
+                            Duplicates (within the input or already in the database) will be skipped automatically.
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a asp-action="Keys" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success px-4">
+                            Import Keys
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">Tips</h5>
+                <ul class="mb-0 small">
+                    <li class="mb-2">
+                        You can paste keys directly from a spreadsheet — each row becomes one key.
+                    </li>
+                    <li class="mb-2">
+                        Keys that already exist in the database are automatically skipped — no duplicates will be created.
+                    </li>
+                    <li class="mb-2">
+                        All imported keys start with status <span class="badge bg-success">Available</span>.
+                    </li>
+                    <li>
+                        Make sure the correct game–platform combination is selected before importing.
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
