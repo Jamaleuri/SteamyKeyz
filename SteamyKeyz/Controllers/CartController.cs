@@ -53,7 +53,11 @@ public class CartController : Controller
             TempData["CartError"] = "This game/platform combination doesn't exist.";
             return RedirectToAction("Index", "Game");
         }
-
+        if (!gp.Game.IsActive)
+        {
+            TempData["CartError"] = "This game is currently not available.";
+            return RedirectToAction("Index", "Game");
+        }
         var availableKeys = await _context.Keys
             .CountAsync(k => k.GameId == gameId && k.PlatformId == platformId && k.Status == "Available");
 

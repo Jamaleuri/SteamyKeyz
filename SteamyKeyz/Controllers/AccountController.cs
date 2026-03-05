@@ -13,11 +13,14 @@ namespace SteamyKeyz.Controllers;
 public class AccountController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public AccountController(AppDbContext context)
+    public AccountController(AppDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
+
 
     // ─── Helper: current user id from claims ─────────────────────
 
@@ -122,7 +125,7 @@ public class AccountController : Controller
 
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["InfoMessage"] = "Your account has been deleted.";
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     // ─── Helper: rebuild page after validation failure ───────────
@@ -160,15 +163,11 @@ public class AccountController : Controller
         return View(nameof(Index), vm);
     }
 
-    // ═════════════════════════════════════════════════════════════
-    //  Register / Login / Logout
-    // ═════════════════════════════════════════════════════════════
-
     [HttpGet]
     public IActionResult Register()
     {
         if (User.Identity?.IsAuthenticated == true)
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index", "Game");
         return View();
     }
 
@@ -199,30 +198,46 @@ public class AccountController : Controller
             await _context.SaveChangesAsync();
         }
 
+        // Generate a secure confirmation token
+        var token = GenerateEmailToken();
+
         var user = new User
         {
             Username = model.Username,
             Email = model.Email,
             PasswordHash = PasswordHasher.Hash(model.Password),
-            RoleId = customerRole.Id
+            RoleId = customerRole.Id,
+            EmailConfirmed = false,
+            EmailConfirmationToken = token,
+            EmailConfirmationTokenExpiry = DateTime.UtcNow.AddHours(24)
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        await SignInUser(user, customerRole.Name, isPersistent: false);
+        // Build the confirmation URL
+        var confirmUrl = Url.Action(
+            nameof(ConfirmEmail),
+            "Account",
+            new { userId = user.Id, token },
+            Request.Scheme);
 
-        // ── Merge guest cart into the new user's DB cart ──
-        await CartController.MergeSessionCartIntoDb(HttpContext, _context, user.Id);
+        // Send the confirmation email
+        await _emailService.SendConfirmationEmailAsync(user.Email, new ConfirmationEmailModel
+        {
+            Username = user.Username,
+            ConfirmationUrl = confirmUrl!
+        });
 
-        return RedirectToAction("Index", "Home");
+        // Do NOT sign the user in — redirect to a "check your email" page
+        return RedirectToAction(nameof(RegisterConfirmation));
     }
 
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
         if (User.Identity?.IsAuthenticated == true)
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index", "Game");
 
         ViewData["ReturnUrl"] = returnUrl;
         return View();
@@ -254,6 +269,13 @@ public class AccountController : Controller
             ModelState.AddModelError(string.Empty, "This account has been deactivated.");
             return View(model);
         }
+        if (!user.EmailConfirmed)
+        {
+            ModelState.AddModelError(string.Empty,
+                "Please confirm your email address before logging in. Check your inbox for the confirmation link.");
+            ViewBag.UnconfirmedUserId = user.Id;
+            return View(model);
+        }
 
         await SignInUser(user, user.Role.Name, model.RememberMe);
 
@@ -263,16 +285,93 @@ public class AccountController : Controller
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             return Redirect(returnUrl);
 
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
+    [HttpGet]
+    public async Task<IActionResult> ConfirmEmail(int userId, string token)
+    {
+        var user = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user is null)
+        {
+            TempData["InfoMessage"] = "Invalid confirmation link.";
+            return RedirectToAction("Index", "Game");
+        }
+
+        // Already confirmed?
+        if (user.EmailConfirmed)
+        {
+            TempData["InfoMessage"] = "Your email is already confirmed. You can log in.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        // Token mismatch or expired?
+        if (user.EmailConfirmationToken != token
+            || user.EmailConfirmationTokenExpiry < DateTime.UtcNow)
+        {
+            ViewData["Title"] = "Link Expired";
+            ViewBag.UserId = user.Id;
+            return View("ConfirmEmailFailed");
+        }
+
+        // ── Confirm the email ──
+        user.EmailConfirmed = true;
+        user.EmailConfirmationToken = null;
+        user.EmailConfirmationTokenExpiry = null;
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "Your email has been confirmed! You can now log in.";
+        return RedirectToAction(nameof(Login));
+    }
+    [HttpGet]
+    public IActionResult RegisterConfirmation()
+    {
+        return View();
+    }
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResendConfirmation(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user is null || user.EmailConfirmed)
+        {
+            TempData["InfoMessage"] = "Invalid request or email already confirmed.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        // Generate a fresh token
+        var token = GenerateEmailToken();
+        user.EmailConfirmationToken = token;
+        user.EmailConfirmationTokenExpiry = DateTime.UtcNow.AddHours(24);
+        await _context.SaveChangesAsync();
+
+        var confirmUrl = Url.Action(
+            nameof(ConfirmEmail),
+            "Account",
+            new { userId = user.Id, token },
+            Request.Scheme);
+
+        await _emailService.SendConfirmationEmailAsync(user.Email, new ConfirmationEmailModel
+        {
+            Username = user.Username,
+            ConfirmationUrl = confirmUrl!
+        });
+
+        TempData["InfoMessage"] = "A new confirmation link has been sent to your email.";
+        return RedirectToAction(nameof(RegisterConfirmation));
+    }
+    
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Game");
     }
 
     [HttpGet]
@@ -305,5 +404,14 @@ public class AccountController : Controller
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(identity),
             properties);
+    }
+  
+    private static string GenerateEmailToken()
+    {
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
     }
 }

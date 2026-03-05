@@ -22,8 +22,13 @@
 
     <!-- ── Game Info ──────────────────────────────────────────── -->
     <div class="col-md-8">
-        <h1 class="mb-2">@Model.Title</h1>
-
+        <h1 class="mb-2">
+            @Model.Title
+            @if (!Model.IsActive)
+            {
+                <span class="badge bg-danger fs-6 ms-2">Deactivated</span>
+            }
+        </h1>
         <div class="text-muted mb-3">
             <span class="me-3"><strong>Developer:</strong> @Model.Developer</span>
             <span class="me-3"><strong>Publisher:</strong> @Model.Publisher</span>
@@ -92,12 +97,29 @@
             </div>
         }
 
-        <!-- ── Admin Actions ──────────────────────────────────── -->
-        @if (User.IsInRole("Admin"))
+        @if (User.IsInRole("Admin") || User.IsInRole("Mitarbeiter"))
         {
             <hr />
             <div class="d-flex gap-2">
                 <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Edit</a>
+
+                <form asp-controller="Admin" asp-action="ToggleGameActive" asp-route-id="@Model.Id" method="post" class="d-inline">
+                    @if (Model.IsActive)
+                    {
+                        <button type="submit" class="btn btn-outline-warning"
+                                onclick="return confirm('Deactivate this game? It will be hidden from the store.');">
+                            Deactivate
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn-outline-success"
+                                onclick="return confirm('Activate this game? It will become visible in the store.');">
+                            Activate
+                        </button>
+                    }
+                </form>
+
                 <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger">Delete</a>
             </div>
         }

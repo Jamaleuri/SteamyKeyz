@@ -20,6 +20,8 @@ public class Game
 
     [Column(TypeName = "date")]
     public DateTime? ReleaseDate { get; set; }
+    
+    public bool IsActive { get; set; } = true;
 
     // Computed image path — not stored in DB
     [NotMapped]

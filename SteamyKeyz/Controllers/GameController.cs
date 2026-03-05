@@ -25,15 +25,13 @@ public class GameController : Controller
         _env = env;
     }
 
-    // ═════════════════════════════════════════════════════════════
-    //  PUBLIC: Storefront
-    // ═════════════════════════════════════════════════════════════
-
     public async Task<IActionResult> Index(string? search, int? platformId, string? sortBy, int page = 1)
     {
         var query = _context.Games
             .Include(g => g.GamePlatforms).ThenInclude(gp => gp.Platform)
             .AsNoTracking()
+            .Where(g => g.IsActive) 
+            .Where(g => g.IsActive)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -116,11 +114,19 @@ public class GameController : Controller
 
         if (game is null) return NotFound();
 
+        if (!game.IsActive
+            && !User.IsInRole("Admin")
+            && !User.IsInRole("Mitarbeiter"))
+        {
+            return NotFound();
+        }
+        
         var vm = new GameDetailsViewModel
         {
             Id = game.Id,
             Title = game.Title,
             Description = game.Description,
+            IsActive = game.IsActive,
             Developer = game.Developer,
             Publisher = game.Publisher,
             ReleaseDate = game.ReleaseDate,
@@ -138,11 +144,8 @@ public class GameController : Controller
         return View(vm);
     }
 
-    // ═════════════════════════════════════════════════════════════
-    //  ADMIN: Create / Edit / Delete
-    // ═════════════════════════════════════════════════════════════
-
-    [Authorize(Roles = "Admin")]
+   
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> Create()
     {
         var vm = new GameFormViewModel
@@ -154,7 +157,7 @@ public class GameController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> Create(GameFormViewModel model)
     {
         ValidateImage(model.CoverImage);
@@ -196,7 +199,7 @@ public class GameController : Controller
         return RedirectToAction(nameof(Details), new { id = game.Id });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> Edit(int? id)
     {
         if (id is null) return NotFound();
@@ -238,7 +241,7 @@ public class GameController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> Edit(int id, GameFormViewModel model)
     {
         if (id != model.Id) return NotFound();
@@ -307,7 +310,7 @@ public class GameController : Controller
         return RedirectToAction(nameof(Details), new { id = game.Id });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> Delete(int? id)
     {
         if (id is null) return NotFound();
@@ -324,7 +327,7 @@ public class GameController : Controller
 
     [HttpPost, ActionName("Delete")]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "Staff")]
     public async Task<IActionResult> DeleteConfirmed(int id)
     {
         var game = await _context.Games

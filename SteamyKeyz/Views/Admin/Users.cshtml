@@ -84,7 +84,12 @@
                     <td><strong>@user.Username</strong></td>
                     <td>@user.Email</td>
                     <td>
-                        <span class="badge @(user.Role.Name == "Admin" ? "bg-danger" : "bg-info text-dark")">
+                        <span class="badge @(user.Role.Name switch
+                                           {
+                                               "Admin" => "bg-danger", 
+                                               "Mitarbeiter" => "bg-warning text-dark", 
+                                               _ => "bg-info text-dark"
+                                           })">                            
                             @user.Role.Name
                         </span>
                     </td>

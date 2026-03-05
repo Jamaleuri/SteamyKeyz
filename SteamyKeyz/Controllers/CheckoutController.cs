@@ -4,26 +4,26 @@ using Microsoft.EntityFrameworkCore;
 using SteamyKeyz.Data;
 using SteamyKeyz.Services;
 using SteamyKeyz.ViewModels;
+using SteamyKeyz.Models;
+using System.Text.Json;
 
 namespace SteamyKeyz.Controllers;
 
 public class CheckoutController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public CheckoutController(AppDbContext context)
+    public CheckoutController(AppDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
 
     private int? CurrentUserId =>
         int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
     private bool IsLoggedIn => User.Identity?.IsAuthenticated == true;
-
-    // ═══════════════════════════════════════════════════════════
-    //  GET: Checkout/Index — show checkout form
-    // ═══════════════════════════════════════════════════════════
 
     [HttpGet]
     public async Task<IActionResult> Index()
@@ -42,7 +42,7 @@ public class CheckoutController : Controller
             if (item.Quantity > item.AvailableStock)
             {
                 TempData["CartError"] = $"Not enough stock for '{item.GameTitle}' ({item.PlatformName}). " +
-                                         $"Available: {item.AvailableStock}, in cart: {item.Quantity}.";
+                                        $"Available: {item.AvailableStock}, in cart: {item.Quantity}.";
                 return RedirectToAction("Index", "Cart");
             }
         }
@@ -55,10 +55,6 @@ public class CheckoutController : Controller
 
         return View(vm);
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  POST: Checkout/PlaceOrder — create order + reserve keys
-    // ═══════════════════════════════════════════════════════════
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -118,8 +114,9 @@ public class CheckoutController : Controller
                     if (key is null)
                     {
                         await transaction.RollbackAsync();
-                        TempData["CartError"] = $"Not enough stock for '{cartItem.GameTitle}' ({cartItem.PlatformName}). " +
-                                                 "Please adjust your cart and try again.";
+                        TempData["CartError"] =
+                            $"Not enough stock for '{cartItem.GameTitle}' ({cartItem.PlatformName}). " +
+                            "Please adjust your cart and try again.";
                         return RedirectToAction("Index", "Cart");
                     }
 
@@ -136,10 +133,6 @@ public class CheckoutController : Controller
                 }
             }
 
-            // ── Create the invoice ──
-
-            // For guests we create a temporary user or use userId = 0
-            // For simplicity, guests need a user record — create a guest user
             int userId;
             if (IsLoggedIn)
             {
@@ -147,7 +140,6 @@ public class CheckoutController : Controller
             }
             else
             {
-                // Create a guest user record
                 var guestRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Customer")
                                 ?? await _context.Roles.FirstOrDefaultAsync(r => r.Name == "User");
 
@@ -219,10 +211,6 @@ public class CheckoutController : Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  GET: Checkout/Confirmation/{invoiceId}
-    // ═══════════════════════════════════════════════════════════
-
     [HttpGet]
     public async Task<IActionResult> Confirmation(int invoiceId)
     {
@@ -251,59 +239,101 @@ public class CheckoutController : Controller
                 GameTitle = ii.Key.Game.Title,
                 PlatformName = ii.Key.Platform.Name,
                 Price = ii.PriceAtPurchase,
-                // Show key only if status is KeysSent
                 KeyValue = invoice.Status == "KeysSent" ? ii.Key.KeyValue : null
             }).ToList()
         };
-
         return View(vm);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  POST: Checkout/SimulatePayment — mark as paid
-    // ═══════════════════════════════════════════════════════════
+   [HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SimulatePayment(int invoiceId)
+{
+    var invoice = await _context.Invoices
+        .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
+        .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
+        .Include(i => i.User)
+        .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SimulatePayment(int invoiceId)
+    if (invoice is null) return NotFound();
+
+    if (invoice.Status != "Pending")
     {
-        var invoice = await _context.Invoices
-            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key)
-            .FirstOrDefaultAsync(i => i.Id == invoiceId);
-
-        if (invoice is null) return NotFound();
-
-        if (invoice.Status != "Pending")
-        {
-            TempData["OrderError"] = "This order has already been processed.";
-            return RedirectToAction(nameof(Confirmation), new { invoiceId });
-        }
-
-        // Mark as Paid
-        invoice.Status = "Paid";
-
-        // Mark keys as Sold
-        foreach (var ii in invoice.InvoiceItems)
-        {
-            ii.Key.Status = "Sold";
-        }
-
-        await _context.SaveChangesAsync();
-
-        // TODO: Send invoice email here
-        // TODO: Schedule background job to send keys email after 10 minutes
-
-        // For now, immediately advance to KeysSent for demo purposes
-        invoice.Status = "KeysSent";
-        await _context.SaveChangesAsync();
-
-        TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
+        TempData["OrderError"] = "This order has already been processed.";
         return RedirectToAction(nameof(Confirmation), new { invoiceId });
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  Helpers
-    // ═══════════════════════════════════════════════════════════
+    // ── Mark as Paid ──
+    invoice.Status = "Paid";
+
+    _context.OrderStatusHistory.Add(new OrderStatusHistory
+    {
+        InvoiceId = invoice.Id,
+        OldStatus = "Pending",
+        NewStatus = "Paid",
+        ChangedBy = User.Identity?.Name ?? "Guest",
+        Notes = "Payment simulation"
+    });
+    foreach (var ii in invoice.InvoiceItems)
+    {
+        ii.Key.Status = "Sold";
+    }
+
+    // ── Queue invoice email (send immediately) ──
+    var invoiceEmailModel = new InvoiceEmailModel
+    {
+        InvoiceNumber = invoice.InvoiceNumber,
+        CustomerAddress = invoice.User.Email,
+        CustomerEmail = invoice.User.Email,
+        InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
+        Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+        CustomerName = invoice.User.Username,
+        Subtotal = invoice.TotalAmount.ToString("C"),
+        TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
+        TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
+    };
+
+    _context.EmailJobs.Add(new SteamyKeyz.Models.EmailJob
+    {
+        InvoiceId = invoice.Id,
+        EmailType = "Invoice",
+        ToEmail = invoice.User.Email,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(invoiceEmailModel),
+        ScheduledAt = DateTime.UtcNow // send immediately
+    });
+
+    // ── Queue keys email (10-minute delay) ──
+    var isRegistered = invoice.User.IsActive && !invoice.User.Username.StartsWith("guest_");
+
+    var keysModel = new KeysEmailModel
+    {
+        CustomerName = invoice.User.Username,
+        InvoiceNumber = invoice.InvoiceNumber,
+        IsRegisteredUser = isRegistered,
+        AccountUrl = $"{Request.Scheme}://{Request.Host}/Account",
+        Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
+        {
+            GameTitle = ii.Key.Game.Title,
+            PlatformName = ii.Key.Platform.Name,
+            KeyValue = ii.Key.KeyValue
+        }).ToList()
+    };
+
+    _context.EmailJobs.Add(new EmailJob
+    {
+        InvoiceId = invoice.Id,
+        EmailType = "Keys",
+        ToEmail = invoice.User.Email,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(keysModel),
+        ScheduledAt = DateTime.UtcNow.AddSeconds(10) 
+    });
+
+    await _context.SaveChangesAsync();
+
+    TempData["OrderSuccess"] = "Payment successful! Your invoice will arrive by email shortly, " +
+                               "and your license keys will follow within 10 minutes.";
+    return RedirectToAction(nameof(Confirmation), new { invoiceId });
+}
 
     private async Task<CartViewModel> BuildCartViewModel()
     {
