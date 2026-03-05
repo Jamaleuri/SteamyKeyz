@@ -1,3 +1,4 @@
+@using SteamyKeyz.ViewModels
 @model SteamyKeyz.ViewModels.GameIndexViewModel
 
 @{
@@ -86,6 +87,8 @@ else
                             <div class="mt-auto">
                                 @if (game.LowestPrice.HasValue)
                                 {
+                                    <div class="hstack justify-content-between">
+                                        
                                     <span class="fw-bold text-success fs-5">
                                         @game.LowestPrice.Value.ToString("C")
                                     </span>
@@ -93,6 +96,20 @@ else
                                     {
                                         <small class="text-muted"> +</small>
                                     }
+                                        @if (game.Platforms.Count > 1)
+                                        {
+                                            <div class="dropdown">
+                                                @foreach (var platform in game.Platforms)
+                                                {
+                                                    <option>
+                                                        <a class="btn btn-outline-primary" asp-controller="Cart" asp-action="Add" asp-route-gameId="@game.Id" asp-route-platformId="@platform.PlatformId">
+                                                            Buy for @platform.Platform.Name
+                                                        </a>
+                                                    </option>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                 }
                                 else
                                 {

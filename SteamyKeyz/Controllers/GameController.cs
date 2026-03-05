@@ -73,6 +73,7 @@ public class GameController : Controller
                 Developer = g.Developer,
                 ImageUrl = $"/images/games/{g.Id}/cover.jpg",
                 ReleaseDate = g.ReleaseDate,
+                Platforms = g.GamePlatforms.ToList(),
                 LowestPrice = g.GamePlatforms.Any()
                     ? g.GamePlatforms.Min(gp => gp.Price)
                     : null,

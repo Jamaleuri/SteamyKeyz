@@ -483,7 +483,7 @@ public async Task<IActionResult> Dashboard()
             CustomerAddress = invoice.User.Email,
             CustomerEmail = invoice.User.Email,
             InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
-            Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+            Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x.Key.Game.Title, x.Key.Platform.Name, x.PriceAtPurchase.ToString("C"))).ToList(),
             CustomerName = invoice.User.Username,
             Subtotal = invoice.TotalAmount.ToString("C"),
             TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),

@@ -34,10 +34,6 @@ public class CartController : Controller
         return View(vm);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  POST: Cart/Add — add an item
-    // ═══════════════════════════════════════════════════════════
-
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Add(int gameId, int platformId, int quantity = 1)

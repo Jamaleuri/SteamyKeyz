@@ -9,16 +9,9 @@ using System.Text.Json;
 
 namespace SteamyKeyz.Controllers;
 
-public class CheckoutController : Controller
+public class CheckoutController(AppDbContext context, IEmailService emailService) : Controller
 {
-    private readonly AppDbContext _context;
-    private readonly IEmailService _emailService;
-
-    public CheckoutController(AppDbContext context, IEmailService emailService)
-    {
-        _context = context;
-        _emailService = emailService;
-    }
+    private readonly IEmailService _emailService = emailService;
 
     private int? CurrentUserId =>
         int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
@@ -92,7 +85,7 @@ public class CheckoutController : Controller
 
         // ── Stock check + key reservation (inside a transaction) ──
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync();
 
         try
         {
@@ -104,7 +97,7 @@ public class CheckoutController : Controller
                 for (int i = 0; i < cartItem.Quantity; i++)
                 {
                     // Grab one available key
-                    var key = await _context.Keys
+                    var key = await context.Keys
                         .Where(k => k.GameId == cartItem.GameId
                                     && k.PlatformId == cartItem.PlatformId
                                     && k.Status == "Available")
@@ -140,14 +133,14 @@ public class CheckoutController : Controller
             }
             else
             {
-                var guestRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Customer")
-                                ?? await _context.Roles.FirstOrDefaultAsync(r => r.Name == "User");
+                var guestRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == "Customer")
+                                ?? await context.Roles.FirstOrDefaultAsync(r => r.Name == "User");
 
                 if (guestRole is null)
                 {
                     guestRole = new Role { Name = "Customer", Description = "Default customer role" };
-                    _context.Roles.Add(guestRole);
-                    await _context.SaveChangesAsync();
+                    context.Roles.Add(guestRole);
+                    await context.SaveChangesAsync();
                 }
 
                 var guestUser = new User
@@ -159,8 +152,8 @@ public class CheckoutController : Controller
                     IsActive = false // not a real user account
                 };
 
-                _context.Users.Add(guestUser);
-                await _context.SaveChangesAsync();
+                context.Users.Add(guestUser);
+                await context.SaveChangesAsync();
                 userId = guestUser.Id;
             }
 
@@ -178,21 +171,21 @@ public class CheckoutController : Controller
                 invoice.InvoiceItems.Add(ii);
             }
 
-            _context.Invoices.Add(invoice);
-            await _context.SaveChangesAsync();
+            context.Invoices.Add(invoice);
+            await context.SaveChangesAsync();
 
             // ── Clear the cart ──
 
             if (IsLoggedIn)
             {
-                var dbCart = await _context.ShoppingCarts
+                var dbCart = await context.ShoppingCarts
                     .Include(sc => sc.CartItems)
                     .FirstOrDefaultAsync(sc => sc.UserId == CurrentUserId!.Value);
 
                 if (dbCart is not null)
                 {
-                    _context.CartItems.RemoveRange(dbCart.CartItems);
-                    await _context.SaveChangesAsync();
+                    context.CartItems.RemoveRange(dbCart.CartItems);
+                    await context.SaveChangesAsync();
                 }
             }
             else
@@ -214,7 +207,7 @@ public class CheckoutController : Controller
     [HttpGet]
     public async Task<IActionResult> Confirmation(int invoiceId)
     {
-        var invoice = await _context.Invoices
+        var invoice = await context.Invoices
             .AsNoTracking()
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
@@ -249,7 +242,7 @@ public class CheckoutController : Controller
 [ValidateAntiForgeryToken]
 public async Task<IActionResult> SimulatePayment(int invoiceId)
 {
-    var invoice = await _context.Invoices
+    var invoice = await context.Invoices
         .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
         .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
         .Include(i => i.User)
@@ -266,7 +259,7 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
     // ── Mark as Paid ──
     invoice.Status = "Paid";
 
-    _context.OrderStatusHistory.Add(new OrderStatusHistory
+    context.OrderStatusHistory.Add(new OrderStatusHistory
     {
         InvoiceId = invoice.Id,
         OldStatus = "Pending",
@@ -286,19 +279,19 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
         CustomerAddress = invoice.User.Email,
         CustomerEmail = invoice.User.Email,
         InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
-        Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+        Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x.Key.Game.Title, x.Key.Platform.Name, x.PriceAtPurchase.ToString("C"))).ToList(),
         CustomerName = invoice.User.Username,
         Subtotal = invoice.TotalAmount.ToString("C"),
         TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
         TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
     };
 
-    _context.EmailJobs.Add(new SteamyKeyz.Models.EmailJob
+    context.EmailJobs.Add(new EmailJob
     {
         InvoiceId = invoice.Id,
         EmailType = "Invoice",
         ToEmail = invoice.User.Email,
-        PayloadJson = System.Text.Json.JsonSerializer.Serialize(invoiceEmailModel),
+        PayloadJson = JsonSerializer.Serialize(invoiceEmailModel),
         ScheduledAt = DateTime.UtcNow // send immediately
     });
 
@@ -319,16 +312,16 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
         }).ToList()
     };
 
-    _context.EmailJobs.Add(new EmailJob
+    context.EmailJobs.Add(new EmailJob
     {
         InvoiceId = invoice.Id,
         EmailType = "Keys",
         ToEmail = invoice.User.Email,
-        PayloadJson = System.Text.Json.JsonSerializer.Serialize(keysModel),
+        PayloadJson = JsonSerializer.Serialize(keysModel),
         ScheduledAt = DateTime.UtcNow.AddSeconds(10) 
     });
 
-    await _context.SaveChangesAsync();
+    await context.SaveChangesAsync();
 
     TempData["OrderSuccess"] = "Payment successful! Your invoice will arrive by email shortly, " +
                                "and your license keys will follow within 10 minutes.";
@@ -340,7 +333,7 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
         if (IsLoggedIn)
         {
             var userId = CurrentUserId!.Value;
-            var cart = await _context.ShoppingCarts
+            var cart = await context.ShoppingCarts
                 .AsNoTracking()
                 .Include(sc => sc.CartItems).ThenInclude(ci => ci.Game)
                 .Include(sc => sc.CartItems).ThenInclude(ci => ci.Platform)
@@ -351,12 +344,12 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
             var items = new List<CartItemViewModel>();
             foreach (var ci in cart.CartItems)
             {
-                var price = await _context.GamePlatforms
+                var price = await context.GamePlatforms
                     .Where(gp => gp.GameId == ci.GameId && gp.PlatformId == ci.PlatformId)
                     .Select(gp => gp.Price)
                     .FirstOrDefaultAsync();
 
-                var stock = await _context.Keys
+                var stock = await context.Keys
                     .CountAsync(k => k.GameId == ci.GameId && k.PlatformId == ci.PlatformId && k.Status == "Available");
 
                 items.Add(new CartItemViewModel
@@ -381,7 +374,7 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
 
             foreach (var si in sessionItems)
             {
-                var gp = await _context.GamePlatforms
+                var gp = await context.GamePlatforms
                     .AsNoTracking()
                     .Include(g => g.Game)
                     .Include(g => g.Platform)
@@ -389,7 +382,7 @@ public async Task<IActionResult> SimulatePayment(int invoiceId)
 
                 if (gp is null) continue;
 
-                var stock = await _context.Keys
+                var stock = await context.Keys
                     .CountAsync(k => k.GameId == si.GameId && k.PlatformId == si.PlatformId && k.Status == "Available");
 
                 items.Add(new CartItemViewModel

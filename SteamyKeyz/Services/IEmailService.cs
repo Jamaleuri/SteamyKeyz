@@ -27,11 +27,11 @@ public class InvoiceEmailModel
 public class InvoiceEmailItem
 {
    
-    public InvoiceEmailItem(InvoiceItem invoiceItem)
+    public InvoiceEmailItem(string gameTitle, string platformName, string price)
     {
-        GameTitle = invoiceItem.Key.Game.Title;
-        PlatformName = invoiceItem.Key.Platform.Name;
-        Price = invoiceItem.PriceAtPurchase.ToString();
+        GameTitle = gameTitle;
+        PlatformName = platformName;
+        Price = price;
     }
     public string GameTitle { get; set; } = string.Empty;
     public string PlatformName { get; set; } = string.Empty;

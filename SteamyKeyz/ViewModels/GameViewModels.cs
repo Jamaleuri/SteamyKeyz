@@ -26,10 +26,22 @@ public class GameCardViewModel
     public string Developer { get; set; } = string.Empty;
     public string ImageUrl { get; set; } = string.Empty;
     public DateTime? ReleaseDate { get; set; }
-    public decimal? LowestPrice { get; set; }
+    public List<GamePlatform>? Platforms { get; set; }
+    public decimal? LowestPrice {get; set;}
     public List<string> PlatformNames { get; set; } = new();
 }
 
+public class AddCartViewModel
+{
+    public AddCartViewModel(int gameId, int platformId)
+    {
+        GameId = gameId;
+        PlatformId = platformId;
+    }
+    public int GameId { get; set; }
+    public int PlatformId { get; set; }
+    public int Quantity { get; set; } = 1;
+}
 public class PlatformOptionViewModel
 {
     public int Id { get; set; }
