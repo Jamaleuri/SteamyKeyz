@@ -167,23 +167,77 @@
             </div>
         </div>
 
-        <!-- Resend Invoice -->
+        <!-- Email Actions -->
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">Email Actions</h5>
             </div>
             <div class="card-body">
-                <form asp-action="ResendInvoice" method="post">
+                <form asp-action="ResendInvoice" method="post" class="mb-2">
                     <input type="hidden" name="invoiceId" value="@Model.InvoiceId" />
-                    <button type="submit" class="btn btn-outline-primary w-100 mb-2"
+                    <button type="submit" class="btn btn-outline-primary w-100"
                             onclick="return confirm('Resend invoice to @Model.Email?');">
                         Resend Invoice Email
                     </button>
                 </form>
+
+                @if (Model.Status is "InvoiceSent" or "KeysSent")
+                {
+                    <form asp-action="ResendKeys" method="post" class="mb-2">
+                        <input type="hidden" name="invoiceId" value="@Model.InvoiceId" />
+                        <button type="submit" class="btn btn-outline-success w-100"
+                                onclick="return confirm('Resend keys to @Model.Email?');">
+                            Resend Keys Email
+                        </button>
+                    </form>
+                }
+
                 <p class="text-muted small mb-0">
-                    Sends the invoice to <strong>@Model.Email</strong>.
+                    Sends to <strong>@Model.Email</strong>.
                 </p>
             </div>
+        </div>
+        <!-- Status History -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Status History</h5>
+            </div>
+            @if (Model.StatusHistory.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Change</th>
+                            <th>By</th>
+                            <th>Notes</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var h in Model.StatusHistory)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">@h.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>
+                                    <span class="badge bg-secondary">@h.OldStatus</span>
+                                    <span class="text-muted mx-1">&rarr;</span>
+                                    <span class="badge bg-primary">@h.NewStatus</span>
+                                </td>
+                                <td class="small">@h.ChangedBy</td>
+                                <td class="small text-muted">@h.Notes</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="card-body text-muted text-center py-3">
+                    No status changes recorded yet.
+                </div>
+            }
         </div>
     </div>
 </div>

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using SteamyKeyz.Data;
 using SteamyKeyz.Services;
 using SteamyKeyz.ViewModels;
+using SteamyKeyz.Models;
+using System.Text.Json;
 
 namespace SteamyKeyz.Controllers;
 
@@ -243,86 +245,95 @@ public class CheckoutController : Controller
         return View(vm);
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SimulatePayment(int invoiceId)
+   [HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SimulatePayment(int invoiceId)
+{
+    var invoice = await _context.Invoices
+        .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
+        .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
+        .Include(i => i.User)
+        .FirstOrDefaultAsync(i => i.Id == invoiceId);
+
+    if (invoice is null) return NotFound();
+
+    if (invoice.Status != "Pending")
     {
-        var invoice = await _context.Invoices
-            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Game)
-            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(ii => ii.Platform)
-            .Include(i=> i.User)
-            .FirstOrDefaultAsync(i => i.Id == invoiceId);
+        TempData["OrderError"] = "This order has already been processed.";
+        return RedirectToAction(nameof(Confirmation), new { invoiceId });
+    }
 
-        if (invoice is null) return NotFound();
+    // ── Mark as Paid ──
+    invoice.Status = "Paid";
 
-        if (invoice.Status != "Pending")
+    _context.OrderStatusHistory.Add(new OrderStatusHistory
+    {
+        InvoiceId = invoice.Id,
+        OldStatus = "Pending",
+        NewStatus = "Paid",
+        ChangedBy = User.Identity?.Name ?? "Guest",
+        Notes = "Payment simulation"
+    });
+    foreach (var ii in invoice.InvoiceItems)
+    {
+        ii.Key.Status = "Sold";
+    }
+
+    // ── Queue invoice email (send immediately) ──
+    var invoiceEmailModel = new InvoiceEmailModel
+    {
+        InvoiceNumber = invoice.InvoiceNumber,
+        CustomerAddress = invoice.User.Email,
+        CustomerEmail = invoice.User.Email,
+        InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
+        Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+        CustomerName = invoice.User.Username,
+        Subtotal = invoice.TotalAmount.ToString("C"),
+        TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
+        TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
+    };
+
+    _context.EmailJobs.Add(new SteamyKeyz.Models.EmailJob
+    {
+        InvoiceId = invoice.Id,
+        EmailType = "Invoice",
+        ToEmail = invoice.User.Email,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(invoiceEmailModel),
+        ScheduledAt = DateTime.UtcNow // send immediately
+    });
+
+    // ── Queue keys email (10-minute delay) ──
+    var isRegistered = invoice.User.IsActive && !invoice.User.Username.StartsWith("guest_");
+
+    var keysModel = new KeysEmailModel
+    {
+        CustomerName = invoice.User.Username,
+        InvoiceNumber = invoice.InvoiceNumber,
+        IsRegisteredUser = isRegistered,
+        AccountUrl = $"{Request.Scheme}://{Request.Host}/Account",
+        Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
         {
-            TempData["OrderError"] = "This order has already been processed.";
-            return RedirectToAction(nameof(Confirmation), new { invoiceId });
-        }
+            GameTitle = ii.Key.Game.Title,
+            PlatformName = ii.Key.Platform.Name,
+            KeyValue = ii.Key.KeyValue
+        }).ToList()
+    };
 
-        // Mark as Paid
-        invoice.Status = "Paid";
+    _context.EmailJobs.Add(new EmailJob
+    {
+        InvoiceId = invoice.Id,
+        EmailType = "Keys",
+        ToEmail = invoice.User.Email,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(keysModel),
+        ScheduledAt = DateTime.UtcNow.AddSeconds(10) 
+    });
 
-        // Mark keys as Sold
-        foreach (var ii in invoice.InvoiceItems)
-        {
-            ii.Key.Status = "Sold";
-        }
+    await _context.SaveChangesAsync();
 
-        await _context.SaveChangesAsync();
-
-        // TODO: Send invoice email here
-        // TODO: Schedule background job to send keys email after 10 minutes
-
-        // For now, immediately advance to KeysSent for demo purposes
-        invoice.Status = "Paid";
-        await _context.SaveChangesAsync();
-        var invoiceEmailModel = new InvoiceEmailModel()
-        {
-            InvoiceNumber = invoice.InvoiceNumber,
-            CustomerAddress = invoice.User.Email,
-            CustomerEmail = invoice.User.Email,
-            InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
-            Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
-            CustomerName = invoice.User.Username,
-            Subtotal = invoice.TotalAmount.ToString("C"),
-            TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
-            TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
-        };
-        await _emailService.SendInvoiceEmailAsync(invoice.User.Email, invoiceEmailModel);
-        
-        // Build the model NOW while the DbContext is still alive and entities are loaded
-        var keysModel = new KeysEmailModel
-        {
-            CustomerName   = invoice.User.Username,
-            InvoiceNumber  = invoice.InvoiceNumber,
-            IsRegisteredUser = true,
-            AccountUrl     = "https://localhost:5131/Account",
-            Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
-            {
-                GameTitle    = ii.Key.Game.Title,
-                PlatformName = ii.Key.Platform.Name,
-                KeyValue     = ii.Key.KeyValue
-            }).ToList()
-        };
-
-// Capture the email address as a plain string too
-        var customerEmail = invoice.User.Email;
-
-// The background task now only holds plain data — no EF entities
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(30));
-            await _emailService.SendKeysEmailAsync(customerEmail, keysModel);
-            invoice.Status = "KeysSent";
-            _context.Update(invoice);
-            await _context.SaveChangesAsync();
-        });
-            TempData["OrderSuccess"] = "Payment successful! Your license keys are ready.";
-            return RedirectToAction(nameof(Confirmation), new { invoiceId });
-        }
-    
+    TempData["OrderSuccess"] = "Payment successful! Your invoice will arrive by email shortly, " +
+                               "and your license keys will follow within 10 minutes.";
+    return RedirectToAction(nameof(Confirmation), new { invoiceId });
+}
 
     private async Task<CartViewModel> BuildCartViewModel()
     {

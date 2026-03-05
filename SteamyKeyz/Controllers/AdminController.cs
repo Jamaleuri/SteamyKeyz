@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using SteamyKeyz.Data;
+using SteamyKeyz.Services;
 using SteamyKeyz.ViewModels;
 
 namespace SteamyKeyz.Controllers;
@@ -11,12 +12,78 @@ namespace SteamyKeyz.Controllers;
 public class AdminController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _emailService;
 
-    public AdminController(AppDbContext context)
+    public AdminController(AppDbContext context, IEmailService emailService)
     {
         _context = context;
+        _emailService = emailService;
     }
 
+    // ═══════════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════════
+
+public async Task<IActionResult> Dashboard()
+{
+    var invoices = _context.Invoices.AsNoTracking();
+    var keys = _context.Keys.AsNoTracking();
+    var users = _context.Users.AsNoTracking();
+    var games = _context.Games.AsNoTracking();
+    var emailJobs = _context.EmailJobs.AsNoTracking();
+
+    var vm = new AdminDashboardViewModel
+    {
+        // Orders
+        TotalOrders = await invoices.CountAsync(),
+        PendingOrders = await invoices.CountAsync(i => i.Status == "Pending"),
+        PaidOrders = await invoices.CountAsync(i => i.Status == "Paid"),
+        InvoiceSentOrders = await invoices.CountAsync(i => i.Status == "InvoiceSent"),
+        KeysSentOrders = await invoices.CountAsync(i => i.Status == "KeysSent"),
+        TotalRevenue = await invoices
+            .Where(i => i.Status == "Paid" || i.Status == "InvoiceSent" || i.Status ==  "KeysSent")
+            .SumAsync(i => (decimal?)i.TotalAmount) ?? 0,
+
+        // Games & Keys
+        TotalGames = await games.CountAsync(),
+        ActiveGames = await games.CountAsync(g => g.IsActive),
+        DeactivatedGames = await games.CountAsync(g => !g.IsActive),
+        AvailableKeys = await keys.CountAsync(k => k.Status == "Available"),
+        ReservedKeys = await keys.CountAsync(k => k.Status == "Reserved"),
+        SoldKeys = await keys.CountAsync(k => k.Status == "Sold"),
+
+        // Users
+        TotalUsers = await users.CountAsync(),
+        ActiveUsers = await users.CountAsync(u => u.IsActive),
+        SuspendedUsers = await users.CountAsync(u => !u.IsActive),
+
+        // Email Jobs
+        PendingEmailJobs = await emailJobs.CountAsync(j => j.Status == "Pending"),
+        FailedEmailJobs = await emailJobs.CountAsync(j => j.Status == "Failed"),
+
+        // Recent orders (last 5)
+        RecentOrders = await invoices
+            .Include(i => i.User)
+            .Include(i => i.InvoiceItems)
+            .OrderByDescending(i => i.CreatedAt)
+            .Take(5)
+            .Select(i => new AdminOrderSummaryViewModel
+            {
+                InvoiceId = i.Id,
+                InvoiceNumber = i.InvoiceNumber,
+                Username = i.User.Username,
+                Email = i.User.Email,
+                IsGuestOrder = !i.User.IsActive && i.User.Username.StartsWith("guest_"),
+                TotalAmount = i.TotalAmount,
+                Status = i.Status,
+                CreatedAt = i.CreatedAt,
+                ItemCount = i.InvoiceItems.Count
+            })
+            .ToListAsync()
+    };
+
+    return View(vm);
+}
     // ═══════════════════════════════════════════════════════════
     //  USER MANAGEMENT
     // ═══════════════════════════════════════════════════════════
@@ -281,6 +348,7 @@ public class AdminController : Controller
             .Include(i => i.User)
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
             .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
+            .Include(i => i.StatusHistory)
             .FirstOrDefaultAsync(i => i.Id == id);
 
         if (invoice is null) return NotFound();
@@ -304,13 +372,23 @@ public class AdminController : Controller
                 PriceAtPurchase = ii.PriceAtPurchase,
                 KeyValue = ii.Key.KeyValue,
                 KeyStatus = ii.Key.Status
-            }).ToList()
+            }).ToList(),
+            StatusHistory = invoice.StatusHistory
+            .OrderByDescending(h => h.ChangedAt)
+            .Select(h => new StatusHistoryItemViewModel
+            {
+            OldStatus = h.OldStatus,
+            NewStatus = h.NewStatus,
+            ChangedBy = h.ChangedBy,
+            ChangedAt = h.ChangedAt,
+            Notes = h.Notes
+        })
+        .ToList()
         };
 
         return View(vm);
     }
 
-    // POST: Admin/UpdateOrderStatus
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateOrderStatus(int invoiceId, string newStatus)
@@ -326,9 +404,16 @@ public class AdminController : Controller
         if (invoice is null) return NotFound();
 
         var oldStatus = invoice.Status;
+
+        if (oldStatus == newStatus)
+        {
+            TempData["Success"] = "Status unchanged.";
+            return RedirectToAction(nameof(OrderDetail), new { id = invoiceId });
+        }
+
         invoice.Status = newStatus;
 
-        // If advancing to Paid or beyond, mark reserved keys as Sold
+        // Key status adjustments
         if (newStatus is "Paid" or "InvoiceSent" or "KeysSent")
         {
             foreach (var ii in invoice.InvoiceItems)
@@ -338,7 +423,6 @@ public class AdminController : Controller
             }
         }
 
-        // If reverting to Pending, release keys back to Available
         if (newStatus == "Pending")
         {
             foreach (var ii in invoice.InvoiceItems)
@@ -348,26 +432,113 @@ public class AdminController : Controller
             }
         }
 
+        // ── Log the status change ──
+        _context.OrderStatusHistory.Add(new OrderStatusHistory
+        {
+            InvoiceId = invoiceId,
+            OldStatus = oldStatus,
+            NewStatus = newStatus,
+            ChangedBy = User.Identity?.Name ?? "Unknown",
+            Notes = $"Manual status change by {User.Identity?.Name}"
+        });
+
         await _context.SaveChangesAsync();
 
         TempData["Success"] = $"Order {invoice.InvoiceNumber} status changed from {oldStatus} to {newStatus}.";
         return RedirectToAction(nameof(OrderDetail), new { id = invoiceId });
     }
 
-    // POST: Admin/ResendInvoice
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleGameActive(int id)
+    {
+        var game = await _context.Games.FindAsync(id);
+        if (game is null) return NotFound();
+
+        game.IsActive = !game.IsActive;
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = game.IsActive
+            ? $"'{game.Title}' is now active and visible in the store."
+            : $"'{game.Title}' has been deactivated and hidden from the store.";
+
+        return RedirectToAction("Details", "Game", new { id });
+    }
+    
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ResendInvoice(int invoiceId)
     {
         var invoice = await _context.Invoices
             .Include(i => i.User)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
             .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
         if (invoice is null) return NotFound();
 
-        // TODO: Actually send the email via IEmailService
-        TempData["Success"] = $"Invoice {invoice.InvoiceNumber} would be resent to {invoice.User.Email}. " +
-                               "(Email sending not yet implemented.)";
+        var model = new InvoiceEmailModel
+        {
+            InvoiceNumber = invoice.InvoiceNumber,
+            CustomerAddress = invoice.User.Email,
+            CustomerEmail = invoice.User.Email,
+            InvoiceDate = invoice.CreatedAt.ToString("dd/MM/yyyy, HH:mm"),
+            Items = invoice.InvoiceItems.Select(x => new InvoiceEmailItem(x)).ToList(),
+            CustomerName = invoice.User.Username,
+            Subtotal = invoice.TotalAmount.ToString("C"),
+            TaxAmount = (invoice.TotalAmount * 0.2M).ToString("C"),
+            TotalAmount = (invoice.TotalAmount + (invoice.TotalAmount * 0.2M)).ToString("C")
+        };
+
+        try
+        {
+            await _emailService.SendInvoiceEmailAsync(invoice.User.Email, model);
+            TempData["Success"] = $"Invoice {invoice.InvoiceNumber} resent to {invoice.User.Email}.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = $"Failed to resend invoice: {ex.Message}";
+        }
+
+        return RedirectToAction(nameof(OrderDetail), new { id = invoiceId });
+    }
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResendKeys(int invoiceId)
+    {
+        var invoice = await _context.Invoices
+            .Include(i => i.User)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Game)
+            .Include(i => i.InvoiceItems).ThenInclude(ii => ii.Key).ThenInclude(k => k.Platform)
+            .FirstOrDefaultAsync(i => i.Id == invoiceId);
+
+        if (invoice is null) return NotFound();
+
+        var isRegistered = invoice.User.IsActive && !invoice.User.Username.StartsWith("guest_");
+
+        var model = new KeysEmailModel
+        {
+            CustomerName = invoice.User.Username,
+            InvoiceNumber = invoice.InvoiceNumber,
+            IsRegisteredUser = isRegistered,
+            AccountUrl = $"{Request.Scheme}://{Request.Host}/Account",
+            Keys = invoice.InvoiceItems.Select(ii => new KeyEmailItem
+            {
+                GameTitle = ii.Key.Game.Title,
+                PlatformName = ii.Key.Platform.Name,
+                KeyValue = ii.Key.KeyValue
+            }).ToList()
+        };
+
+        try
+        {
+            await _emailService.SendKeysEmailAsync(invoice.User.Email, model);
+            TempData["Success"] = $"Keys for order {invoice.InvoiceNumber} resent to {invoice.User.Email}.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = $"Failed to resend keys: {ex.Message}";
+        }
 
         return RedirectToAction(nameof(OrderDetail), new { id = invoiceId });
     }

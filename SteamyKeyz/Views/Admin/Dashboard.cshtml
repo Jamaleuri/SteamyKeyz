@@ -1,0 +1,203 @@
+﻿@model SteamyKeyz.ViewModels.AdminDashboardViewModel
+
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<h1 class="mb-4">Dashboard</h1>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @success
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- ── Revenue Banner ─────────────────────────────────────────── -->
+<div class="card bg-dark text-white mb-4">
+    <div class="card-body text-center py-4">
+        <div class="text-muted small text-uppercase">Total Revenue</div>
+        <div class="display-4 fw-bold text-success">@Model.TotalRevenue.ToString("C")</div>
+        <div class="text-muted small mt-1">from @Model.KeysSentOrders completed orders</div>
+    </div>
+</div>
+
+<!-- ── Order Stats ────────────────────────────────────────────── -->
+<h5 class="mb-3">Orders</h5>
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card text-center border-secondary h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold">@Model.TotalOrders</div>
+                <div class="text-muted small">Total</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card text-center border-warning h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-warning">@Model.PendingOrders</div>
+                <div class="text-muted small">Pending</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card text-center border-info h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-info">@(Model.PaidOrders + Model.InvoiceSentOrders)</div>
+                <div class="text-muted small">Paid / Processing</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card text-center border-success h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-success">@Model.KeysSentOrders</div>
+                <div class="text-muted small">Complete</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Games & Keys / Users Row ───────────────────────────────── -->
+<div class="row mb-4">
+    <!-- Games & Keys -->
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Games & Keys</h5>
+                <a asp-action="Keys" class="btn btn-outline-primary btn-sm">Manage Keys</a>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold">@Model.ActiveGames</div>
+                        <div class="text-muted small">Active Games</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-muted">@Model.DeactivatedGames</div>
+                        <div class="text-muted small">Deactivated</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold">@Model.TotalGames</div>
+                        <div class="text-muted small">Total</div>
+                    </div>
+                </div>
+                <hr />
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-success">@Model.AvailableKeys</div>
+                        <div class="text-muted small">Available</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-warning">@Model.ReservedKeys</div>
+                        <div class="text-muted small">Reserved</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-secondary">@Model.SoldKeys</div>
+                        <div class="text-muted small">Sold</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users & Email Jobs -->
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Users</h5>
+                @if (User.IsInRole("Admin"))
+                {
+                    <a asp-action="Users" class="btn btn-outline-primary btn-sm">Manage Users</a>
+                }
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-success">@Model.ActiveUsers</div>
+                        <div class="text-muted small">Active</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-warning">@Model.SuspendedUsers</div>
+                        <div class="text-muted small">Suspended</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold">@Model.TotalUsers</div>
+                        <div class="text-muted small">Total</div>
+                    </div>
+                </div>
+                <hr />
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="fs-4 fw-bold text-info">@Model.PendingEmailJobs</div>
+                        <div class="text-muted small">Pending Emails</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="fs-4 fw-bold @(Model.FailedEmailJobs > 0 ? "text-danger" : "text-success")">
+                            @Model.FailedEmailJobs
+                        </div>
+                        <div class="text-muted small">Failed Emails</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Recent Orders ──────────────────────────────────────────── -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recent Orders</h5>
+        <a asp-action="Orders" class="btn btn-outline-primary btn-sm">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+            <tr>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th class="text-end">Total</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var order in Model.RecentOrders)
+            {
+                var statusBadge = order.Status switch
+                {
+                    "Pending"     => "bg-warning text-dark",
+                    "Paid"        => "bg-info text-dark",
+                    "InvoiceSent" => "bg-primary",
+                    "KeysSent"    => "bg-success",
+                    _             => "bg-secondary"
+                };
+
+                <tr>
+                    <td>
+                        <a asp-action="OrderDetail" asp-route-id="@order.InvoiceId"
+                           class="fw-bold text-decoration-none">@order.InvoiceNumber</a>
+                    </td>
+                    <td>
+                        @if (order.IsGuestOrder) { <span class="badge bg-secondary me-1">Guest</span> }
+                        @order.Username
+                    </td>
+                    <td>@order.ItemCount key(s)</td>
+                    <td class="text-end fw-semibold">@order.TotalAmount.ToString("C")</td>
+                    <td><span class="badge @statusBadge">@order.Status</span></td>
+                    <td>@order.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+            @if (!Model.RecentOrders.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-3">No orders yet.</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

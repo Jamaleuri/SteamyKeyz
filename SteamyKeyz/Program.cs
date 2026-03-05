@@ -38,14 +38,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromDays(30);         
         options.SlidingExpiration = true;                       
     });
+builder.Services.AddHostedService<EmailJobWorker>();
 
+// ✅ Correct — replace the old AddAuthorization() entirely
 builder.Services.AddAuthorization(options =>
 {
-    // Full admin access (includes user management)
     options.AddPolicy("AdminOnly", policy =>
         policy.RequireRole("Admin"));
 
-    // Staff = Admin OR Mitarbeiter (games, keys, orders)
     options.AddPolicy("Staff", policy =>
         policy.RequireRole("Admin", "Mitarbeiter"));
 });

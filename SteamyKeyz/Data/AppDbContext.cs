@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Role> Roles => Set<Role>();
+    public DbSet<EmailJob> EmailJobs => Set<EmailJob>();
     public DbSet<User> Users => Set<User>();
     public DbSet<ShoppingCart> ShoppingCarts => Set<ShoppingCart>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
@@ -17,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Key> Keys => Set<Key>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+    public DbSet<OrderStatusHistory> OrderStatusHistory => Set<OrderStatusHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +67,8 @@ public class AppDbContext : DbContext
             .HasForeignKey(ci => ci.PlatformId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        modelBuilder.Entity<Game>()
+            .Property(g => g.IsActive).HasDefaultValue(true);
         // ── GamePlatform: cascades ──────────────────────────────
         modelBuilder.Entity<GamePlatform>()
             .HasOne(gp => gp.Game)
@@ -72,6 +76,19 @@ public class AppDbContext : DbContext
             .HasForeignKey(gp => gp.GameId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // ── EmailJob defaults ───────────────────────────────────────
+        modelBuilder.Entity<EmailJob>()
+            .Property(j => j.Status).HasDefaultValue("Pending");
+
+        modelBuilder.Entity<EmailJob>()
+            .Property(j => j.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+        modelBuilder.Entity<EmailJob>()
+            .Property(j => j.Attempts).HasDefaultValue(0);
+
+// Index for the background worker query
+        modelBuilder.Entity<EmailJob>()
+            .HasIndex(j => new { j.Status, j.ScheduledAt });
         modelBuilder.Entity<GamePlatform>()
             .HasOne(gp => gp.Platform)
             .WithMany(p => p.GamePlatforms)
@@ -151,5 +168,17 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Invoice>()
             .Property(i => i.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+        // ── OrderStatusHistory ──────────────────────────────────────
+        modelBuilder.Entity<OrderStatusHistory>()
+            .Property(h => h.ChangedAt).HasDefaultValueSql("GETUTCDATE()");
+
+        modelBuilder.Entity<OrderStatusHistory>()
+            .HasOne(h => h.Invoice)
+            .WithMany(i => i.StatusHistory)
+            .HasForeignKey(h => h.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<OrderStatusHistory>()
+            .HasIndex(h => h.InvoiceId);
     }
 }

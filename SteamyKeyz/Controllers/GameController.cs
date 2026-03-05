@@ -30,6 +30,8 @@ public class GameController : Controller
         var query = _context.Games
             .Include(g => g.GamePlatforms).ThenInclude(gp => gp.Platform)
             .AsNoTracking()
+            .Where(g => g.IsActive) 
+            .Where(g => g.IsActive)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -112,11 +114,19 @@ public class GameController : Controller
 
         if (game is null) return NotFound();
 
+        if (!game.IsActive
+            && !User.IsInRole("Admin")
+            && !User.IsInRole("Mitarbeiter"))
+        {
+            return NotFound();
+        }
+        
         var vm = new GameDetailsViewModel
         {
             Id = game.Id,
             Title = game.Title,
             Description = game.Description,
+            IsActive = game.IsActive,
             Developer = game.Developer,
             Publisher = game.Publisher,
             ReleaseDate = game.ReleaseDate,

@@ -33,6 +33,7 @@ public class AdminOrderSummaryViewModel
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public int ItemCount { get; set; }
+    public List<StatusHistoryItemViewModel> StatusHistory { get; set; } = new();
 }
 
 // ── Admin: Order detail ─────────────────────────────────────────
@@ -44,6 +45,7 @@ public class AdminOrderDetailViewModel
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public List<StatusHistoryItemViewModel> StatusHistory { get; set; } = new();
 
     // Customer info
     public int UserId { get; set; }
@@ -62,4 +64,12 @@ public class AdminOrderItemViewModel
     public decimal PriceAtPurchase { get; set; }
     public string KeyValue { get; set; } = string.Empty;
     public string KeyStatus { get; set; } = string.Empty;
+}
+public class StatusHistoryItemViewModel
+{
+    public string OldStatus { get; set; } = string.Empty;
+    public string NewStatus { get; set; } = string.Empty;
+    public string ChangedBy { get; set; } = string.Empty;
+    public DateTime ChangedAt { get; set; }
+    public string? Notes { get; set; }
 }

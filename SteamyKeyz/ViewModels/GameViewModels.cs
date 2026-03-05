@@ -42,6 +42,7 @@ public class GameDetailsViewModel
 {
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
     public string? Description { get; set; }
     public string Developer { get; set; } = string.Empty;
     public string Publisher { get; set; } = string.Empty;
